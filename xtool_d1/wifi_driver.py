@@ -161,6 +161,7 @@ class XToolD1WifiDriver(Driver):
             self._ping_task.cancel()
         self.keep_running = True
         self._ping_task = asyncio.ensure_future(self._ping_loop())
+        await self._enter_ack_mode()
 
     def _update_connection_status(
         self, status: TransportStatus, message: str = ""
@@ -254,6 +255,15 @@ class XToolD1WifiDriver(Driver):
             len(lines), len(gcode), laser_on, copy,
         )
 
+    async def _enter_ack_mode(self) -> None:
+        """Send ``$I``: after a power cycle the D1's button only starts a
+        stored job once it has had this (the USB driver sends it too).
+        A button stop drops it back, so this is repeated after uploads."""
+        try:
+            await self._command("$I")
+        except DeviceConnectionError as e:
+            logger.warning("Could not send $I to the D1: %s", e)
+
     @staticmethod
     def _toast(message: str) -> None:
         """Show a message in the main window; never raises."""
@@ -305,6 +315,7 @@ class XToolD1WifiDriver(Driver):
             )
             await self._upload(text)
             self._keep_copy(text)
+            await self._enter_ack_mode()
             if self.auto_start:
                 await self._get(f"/read?file={quote(STORED_FILE, safe='/')}")
                 self._toast(_("Job uploaded and started on the D1."))

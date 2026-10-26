@@ -86,7 +86,8 @@ class WifiDriverTest(unittest.IsolatedAsyncioTestCase):
         await drv.run(self.encoded("G21\nG1 X10 F600\nM5\n"), None, None)
         self.assertEqual(self.d1.stored, "G21\nG1 X10 F600\nM5\n")
         self.assertEqual(
-            self.d1.requests, [("POST", "/cnc/data?filetype=1")]
+            self.d1.requests,
+            [("POST", "/cnc/data?filetype=1"), ("GET", "/cmd?cmd=$I")],
         )
         self.assertEqual(drv.job_finished.sent, 1)
 
@@ -144,6 +145,15 @@ class WifiDriverTest(unittest.IsolatedAsyncioTestCase):
         drv._framing = False
         await drv.run(self.encoded("M106 S0\nG0 X1\n"), None, None)
         self.assertEqual(self.d1.stored, "M106 S0\nG0 X1\n")
+
+    async def test_connect_sends_the_ack_mode_handshake(self):
+        drv = make_driver(self.port)
+        await drv._enter_ack_mode()
+        self.assertEqual(self.d1.requests, [("GET", "/cmd?cmd=$I")])
+
+    async def test_failed_handshake_does_not_raise(self):
+        drv = make_driver(1)  # nothing listens here
+        await drv._enter_ack_mode()
 
     def test_nothing_is_jogged_or_homed(self):
         drv = make_driver(self.port)

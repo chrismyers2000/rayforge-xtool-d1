@@ -106,6 +106,13 @@ registers the drivers in `rayforge_init` instead.
 
 ## Known quirks
 
+- **The D1's button only starts a stored job after `$I`.** After a
+  power cycle it boots in "app mode", where the button does nothing for a
+  Wi-Fi upload (observed: the light blinks blue, the head stays put). The
+  USB driver sends `$I` when it connects; the Wi-Fi driver sends it over
+  `/cmd` on connect and after each upload. A button stop drops the D1
+  back to app mode, hence the repeat.
+
 - Power-cycling the D1 re-enumerates its CH340 serial adapter, often as
   `/dev/ttyUSB1` instead of `/dev/ttyUSB0`. Rayforge keeps the stale
   port until you change it in the machine settings.
