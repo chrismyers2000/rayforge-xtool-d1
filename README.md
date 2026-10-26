@@ -25,7 +25,7 @@ risk.
   not verified, and dense fills burn deep very quickly: use much lower
   power than for a single line.
 
-Everything else (variable-power rasters, Z, rotary, settings, curved paths,
+Everything else (Z, rotary, settings, curved paths,
 other firmware versions) is untested.
 
 ## Wi-Fi driver (upload only)
@@ -47,6 +47,15 @@ lowest levels at a 10% maximum were too faint to mark cardboard.
 default; it started a frame job without a button press in testing, so
 only enable it when nothing laser-on is queued. Rayforge's Frame Repeat
 Count defaults to 20 passes (the profiles set 5).
+
+## Arcs and curves
+
+The D1's firmware does not draw `G2`/`G3` arcs: a full-circle `G2`/`G3`
+test only moved the head in a straight line. The profiles keep
+`supports_arcs` and `supports_curves` off, so Rayforge turns circles and
+curves into short straight moves. A 20 mm circle cut that way (64
+segments, laser on at 10%, 500 mm/min) came out round and closed, with
+every point within 0.001 mm of the 10 mm radius in the file.
 
 ## Safety
 
