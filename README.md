@@ -32,17 +32,17 @@ A "No stored version ... UnknownVersion" warning in the log is harmless.
 | | Wi-Fi | USB |
 |---|---|---|
 | Cable | none | required |
-| Start a job | the D1's button (or optional auto start) | from Rayforge |
-| Stop a job | the D1's button | power switch only |
+| Start a job | the D1's button: press 1 frames the job, press 2 runs it | from Rayforge |
+| Pause / stop | button press 3 pauses; power switch stops | power switch only |
 | Position, jogging | no | yes |
 
 ## Safety
 
 - **Wi-Fi jobs may fire the cutting laser even when the file has no `M3`.**
   See "Supported". Keep eye protection on and material under the head.
-- **Know your stop.** On Wi-Fi, press the D1's button, or use the power
-  switch. On USB, only the power switch is verified: Rayforge's Cancel
-  and the D1's button do not stop a streamed job.
+- **Know your stop.** On Wi-Fi, a third button press pauses the job;
+  the power switch stops it. On USB, only the power switch is verified:
+  Rayforge's Cancel and the D1's button do not stop a streamed job.
 - **The D1 cannot home.** It treats wherever the head is at power-on as
   (0, 0). Park the head in the upper-left corner before powering on, and
   power-cycle after moving it by hand.
