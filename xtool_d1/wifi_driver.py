@@ -313,6 +313,7 @@ class XToolD1WifiDriver(Driver):
                 if self._framing
                 else encoded.text
             )
+            text = self._laser_off_first(text)
             await self._upload(text)
             self._keep_copy(text)
             await self._enter_ack_mode()
@@ -342,6 +343,13 @@ class XToolD1WifiDriver(Driver):
             await super().frame(*args, **kwargs)
         finally:
             self._framing = False
+
+    @staticmethod
+    def _laser_off_first(gcode: str) -> str:
+        """Start the job with ``M5``. After a laser-on job, the next job has
+        been seen running with the cutting laser on though it has no ``M3``;
+        the closing ``M5`` is what turned it off."""
+        return "M5 ;Cutting laser off\n" + gcode
 
     @staticmethod
     def _crosshair_on(gcode: str) -> str:

@@ -84,7 +84,9 @@ class WifiDriverTest(unittest.IsolatedAsyncioTestCase):
     async def test_run_uploads_and_does_not_start(self):
         drv = make_driver(self.port)
         await drv.run(self.encoded("G21\nG1 X10 F600\nM5\n"), None, None)
-        self.assertEqual(self.d1.stored, "G21\nG1 X10 F600\nM5\n")
+        self.assertEqual(
+            self.d1.stored, "M5 ;Cutting laser off\nG21\nG1 X10 F600\nM5\n"
+        )
         self.assertEqual(
             self.d1.requests,
             [("POST", "/cnc/data?filetype=1"), ("GET", "/cmd?cmd=$I")],
@@ -137,6 +139,7 @@ class WifiDriverTest(unittest.IsolatedAsyncioTestCase):
             self.encoded("G21\nM106 S0 ;off\nG0 X1\nM106 S0 ;off\n"),
             None, None,
         )
+        self.assertTrue(self.d1.stored.startswith("M5 ;Cutting laser off\n"))
         self.assertIn("M106 S1", self.d1.stored)
         self.assertTrue(self.d1.stored.rstrip().endswith("M106 S0 ;off"))
 
@@ -144,7 +147,9 @@ class WifiDriverTest(unittest.IsolatedAsyncioTestCase):
         drv = make_driver(self.port)
         drv._framing = False
         await drv.run(self.encoded("M106 S0\nG0 X1\n"), None, None)
-        self.assertEqual(self.d1.stored, "M106 S0\nG0 X1\n")
+        self.assertEqual(
+            self.d1.stored, "M5 ;Cutting laser off\nM106 S0\nG0 X1\n"
+        )
 
     async def test_connect_sends_the_ack_mode_handshake(self):
         drv = make_driver(self.port)
