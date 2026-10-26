@@ -9,6 +9,42 @@ not been reviewed line by line by a person who knows the Rayforge
 internals. A laser can start fires and damage eyes. Use it at your own
 risk.
 
+## Install
+
+Tested with Rayforge 1.13.0 on Linux.
+
+1. In Rayforge, open Settings, then Addons, and choose to install a new
+   addon. In the Addon Registry window click **Install from URL...** and
+   paste this repository's URL:
+   `https://github.com/chrismyers2000/rayforge-xtool-d1`
+2. **Restart Rayforge once.** The addon loads straight away, but the
+   device profiles are only copied into Rayforge on startup, so the
+   D1 profiles won't appear in the add-machine wizard until then.
+3. Add a machine (the add-machine wizard) and pick **xTool D1 10W
+   (Wi-Fi)** or **xTool D1 10W** (USB). The hardware details come
+   pre-filled. For Wi-Fi, enter the D1's IP address and port 8080. For USB
+   pick the port, or enter `1a86:7523` in the "Match by USB VID:PID"
+   entry so it survives a power cycle.
+
+Install from URL was tested on a fresh Rayforge 1.13.0 config: it
+cloned the repository, validated it and loaded the addon, and the
+profiles appeared after the restart. A "No stored version ...
+UnknownVersion" warning in the log is harmless.
+
+### Manual install
+
+1. Close Rayforge.
+2. Copy this folder (the one containing `rayforge-addon.yaml`) to
+   `~/.config/rayforge/addons/xtool_d1`. If you set
+   `RAYFORGE_CONFIG_DIR`, use that folder's `addons` directory instead.
+   (For development, symlink it instead of copying.)
+3. Start Rayforge. It loads the addon, registers the two drivers and
+   copies the device profiles into `~/.config/rayforge/devices`.
+4. Continue from step 3 above.
+
+Rayforge 1.13 never calls the `register_machines` hook, so `backend.py`
+registers the drivers in `rayforge_init` instead.
+
 ## Verified on that machine
 
 - Connect (`$I` handshake, then `?` position polling).
@@ -80,42 +116,6 @@ and readable.
 - Check where the job starts (the first `G0`) before sending it.
   Imported designs may sit at X=0.
 - Wear laser-rated eye protection and keep your hand on the switch.
-
-## Install
-
-Tested with Rayforge 1.13.0 on Linux.
-
-1. In Rayforge, open Settings, then Addons, and choose to install a new
-   addon. In the Addon Registry window click **Install from URL...** and
-   paste this repository's URL:
-   `https://github.com/chrismyers2000/rayforge-xtool-d1`
-2. **Restart Rayforge once.** The addon loads straight away, but the
-   device profiles are only copied into Rayforge on startup, so the
-   D1 profiles won't appear in the add-machine wizard until then.
-3. Add a machine (the add-machine wizard) and pick **xTool D1 10W
-   (Wi-Fi)** or **xTool D1 10W** (USB). The hardware details come
-   pre-filled. For Wi-Fi, enter the D1's IP address and port 8080. For USB
-   pick the port, or enter `1a86:7523` in the "Match by USB VID:PID"
-   entry so it survives a power cycle.
-
-Install from URL was tested on a fresh Rayforge 1.13.0 config: it
-cloned the repository, validated it and loaded the addon, and the
-profiles appeared after the restart. A "No stored version ...
-UnknownVersion" warning in the log is harmless.
-
-### Manual install
-
-1. Close Rayforge.
-2. Copy this folder (the one containing `rayforge-addon.yaml`) to
-   `~/.config/rayforge/addons/xtool_d1`. If you set
-   `RAYFORGE_CONFIG_DIR`, use that folder's `addons` directory instead.
-   (For development, symlink it instead of copying.)
-3. Start Rayforge. It loads the addon, registers the two drivers and
-   copies the device profiles into `~/.config/rayforge/devices`.
-4. Continue from step 3 above.
-
-Rayforge 1.13 never calls the `register_machines` hook, so `backend.py`
-registers the drivers in `rayforge_init` instead.
 
 ## Known quirks
 
