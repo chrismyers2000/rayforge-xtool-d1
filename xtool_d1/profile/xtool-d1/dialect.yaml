@@ -1,0 +1,31 @@
+laser_on: M3 S{power:.0f}
+laser_off: M5
+focus_laser_on: M3 S{power:.0f}
+tool_change: ''
+set_speed: ''
+travel_move: G0{x_cmd}{y_cmd}{z_cmd}{extra_cmd}
+linear_move: G1{x_cmd}{y_cmd}{z_cmd}{extra_cmd}{f_command}
+arc_cw: ''
+arc_ccw: ''
+bezier_cubic: ''
+air_assist_on: ''
+air_assist_off: ''
+home_all: ''
+home_axis: ''
+move_to: G0 X{x} Y{y} F{speed}
+move_to_park: ''
+jog: G0 F{speed}
+clear_alarm: ''
+set_wcs_offset: ''
+probe_cycle: ''
+preamble:
+- G21 ;Set units to mm
+- G90 ;Absolute positioning
+- M106 S0 ;Framing laser off
+postscript:
+- M5 ;Ensure laser is off
+- M106 S0 ;Framing laser off
+can_g0_with_speed: false
+omit_unchanged_coords: true
+continuous_laser_mode: false
+modal_feedrate: true

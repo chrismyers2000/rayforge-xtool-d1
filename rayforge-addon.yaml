@@ -1,0 +1,13 @@
+name: xtool_d1
+display_name: "xTool D1 Driver"
+description: "Serial and Wi-Fi drivers with device profiles for the xTool D1 / D1 10W diode laser."
+api_version: 24
+depends:
+  - rayforge>=1.13.0
+author:
+  name: "Chris Myers"
+provides:
+  backend: xtool_d1.backend
+maturity: experimental
+license:
+  name: "MIT"

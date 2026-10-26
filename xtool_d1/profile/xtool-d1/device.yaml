@@ -1,0 +1,34 @@
+api_version: 1
+device:
+  name: xTool D1 10W
+  vendor: xTool
+  model: D1 10W
+  description: 10W diode laser engraver with 432x406mm work area (serial, 230400 baud)
+  usb_ids:
+  - 1a86:7523
+machine:
+  driver: XToolD1Driver
+  driver_args:
+    baudrate: '230400'
+  gcode_precision: 3
+  supports_arcs: false
+  supports_curves: false
+  axis_extents:
+  - 432.0
+  - 406.0
+  origin: top_left
+  max_travel_speed: 6000
+  max_cut_speed: 6000
+  home_on_start: false
+  single_axis_homing_enabled: false
+  has_z: false
+  rotary_enabled_default: false
+  heads:
+  - max_power: 1000
+    wavelength_nm: 455
+    max_power_watts: 10
+    frame_power_percent: 0
+    frame_repeat_count: 5
+    spot_size_mm:
+    - 0.08
+    - 0.08
