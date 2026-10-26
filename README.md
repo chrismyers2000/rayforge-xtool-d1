@@ -38,8 +38,9 @@ A "No stored version ... UnknownVersion" warning in the log is harmless.
 
 ## Safety
 
-- **Wi-Fi jobs may fire the cutting laser even when the file has no `M3`.**
-  See "Supported". Keep eye protection on and material under the head.
+- **Auto start can fire the cutting laser** (about 10%) even when the file
+  has no `M3`. Started from the D1's button, the same file did not. Don't
+  use auto start without eye protection and material under the head.
 - **Know your stop.** On Wi-Fi, a third button press pauses the job;
   the power switch stops it. On USB, only the power switch is verified:
   Rayforge's Cancel and the D1's button do not stop a streamed job.
@@ -56,13 +57,9 @@ A "No stored version ... UnknownVersion" warning in the log is harmless.
 
 - Cutting and engraving, including variable-power rasters (tested over
   Wi-Fi).
-- Framing (an outline job). **Known problem:** over Wi-Fi the D1 has been
-  seen switching its cutting laser on (about 10%) and its framing light on
-  while running an uploaded job that contains no `M3` and no `M106 S1`.
-  Treat every Wi-Fi job, including frames, as laser-on until this is
-  understood. The cause is unknown.
-- Circles, curves and text. The D1 ignores `G2`/`G3` arcs, so Rayforge
-  converts them to short straight moves.
+- Framing: Rayforge's Frame sends an outline job, and the Wi-Fi driver
+  keeps the D1's crosshair light on for it (`M106 S1`). The D1 also frames
+  on the first button press.
 
 Not tested: Z axis, rotary, other firmware versions and other D1 models.
 
@@ -73,9 +70,10 @@ Not tested: Z axis, rotary, other firmware versions and other D1 models.
 - **Min/Max Power are percentages of the step's Power**, not of the laser.
 - **Frame Repeat Count:** Rayforge defaults to 20 passes; the profiles set 5.
 - **Dense fills burn deep.** Use much lower power than for a single line.
-- **Auto start** (Wi-Fi) starts the uploaded job without a button press. It
-  uses an undocumented call, is off by default, and will start a laser-on
-  job immediately. Only enable it if you accept that.
+- **Auto start** (Wi-Fi) starts the uploaded job without a button press,
+  skipping the D1's own frame step. It uses an undocumented call, is off by
+  default, and has been seen to switch the cutting laser on. Prefer the
+  button.
 - Each Wi-Fi upload is saved as `xtool-d1-last-job.gcode` in Rayforge's
   config folder, so you can read it before running it.
 

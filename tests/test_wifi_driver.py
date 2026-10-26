@@ -49,6 +49,7 @@ def make_driver(port, auto_start=False):
     drv = object.__new__(XToolD1WifiDriver)
     drv.host, drv.port, drv.auto_start = "127.0.0.1", port, auto_start
     drv.keep_running = False
+    drv._framing = False
     drv.state = SimpleNamespace(status=None, error=None)
     for name in ("state_changed", "job_finished", "connection_status_changed"):
         setattr(drv, name, _Signal())
@@ -109,11 +110,41 @@ class WifiDriverTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_console_lines_use_cmd(self):
         drv = make_driver(self.port)
-        await drv.run_raw("M106 S0 ; crosshair off\n\nG4 P1\n")
+        await drv.run_raw("M106 S1 ; crosshair\n\nG4 P1\n")
         self.assertEqual(
             self.d1.requests,
-            [("GET", "/cmd?cmd=M106%20S0"), ("GET", "/cmd?cmd=G4%20P1")],
+            [("GET", "/cmd?cmd=M106%20S1"), ("GET", "/cmd?cmd=G4%20P1")],
         )
+
+    def test_crosshair_on_only_replaces_the_first_off(self):
+        text = "G21\nM106 S0 ;off\nG0 X1\nM5\nM106 S0 ;off\n"
+        out = XToolD1WifiDriver._crosshair_on(text)
+        self.assertEqual(
+            out.splitlines(),
+            [
+                "G21",
+                "M106 S1 ;Framing laser on",
+                "G0 X1",
+                "M5",
+                "M106 S0 ;off",
+            ],
+        )
+
+    async def test_frame_job_turns_the_crosshair_on(self):
+        drv = make_driver(self.port)
+        drv._framing = True
+        await drv.run(
+            self.encoded("G21\nM106 S0 ;off\nG0 X1\nM106 S0 ;off\n"),
+            None, None,
+        )
+        self.assertIn("M106 S1", self.d1.stored)
+        self.assertTrue(self.d1.stored.rstrip().endswith("M106 S0 ;off"))
+
+    async def test_normal_job_is_not_changed(self):
+        drv = make_driver(self.port)
+        drv._framing = False
+        await drv.run(self.encoded("M106 S0\nG0 X1\n"), None, None)
+        self.assertEqual(self.d1.stored, "M106 S0\nG0 X1\n")
 
     async def test_connect_sends_the_ack_mode_handshake(self):
         drv = make_driver(self.port)
