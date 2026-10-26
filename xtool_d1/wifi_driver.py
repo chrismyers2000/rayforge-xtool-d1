@@ -124,10 +124,12 @@ class XToolD1WifiDriver(Driver):
                     key="auto_start",
                     label=_("Start jobs automatically"),
                     description=_(
-                        "Start the uploaded job from here instead of the "
+                        "WARNING: the cutting laser may turn on during "
+                        "framing, even though the job never asks for it. "
+                        "Starts the uploaded job from here instead of the "
                         "machine's button. Not documented by xTool, so off "
-                        "by default; the button is the verified way to "
-                        "start and stop a job."
+                        "by default; the button is the safe way to start "
+                        "and stop a job."
                     ),
                     default=False,
                 ),
