@@ -38,6 +38,8 @@ A "No stored version ... UnknownVersion" warning in the log is harmless.
 
 ## Safety
 
+- **Wi-Fi jobs may fire the cutting laser even when the file has no `M3`.**
+  See "Supported". Keep eye protection on and material under the head.
 - **Know your stop.** On Wi-Fi, press the D1's button, or use the power
   switch. On USB, only the power switch is verified: Rayforge's Cancel
   and the D1's button do not stop a streamed job.
@@ -54,8 +56,11 @@ A "No stored version ... UnknownVersion" warning in the log is harmless.
 
 - Cutting and engraving, including variable-power rasters (tested over
   Wi-Fi).
-- Framing, as a laser-off outline. Don't add `M106 S1` (the crosshair)
-  to a job: on this firmware it switches the cutting laser on.
+- Framing (an outline job). **Known problem:** over Wi-Fi the D1 has been
+  seen switching its cutting laser on (about 10%) and its framing light on
+  while running an uploaded job that contains no `M3` and no `M106 S1`.
+  Treat every Wi-Fi job, including frames, as laser-on until this is
+  understood. The cause is unknown.
 - Circles, curves and text. The D1 ignores `G2`/`G3` arcs, so Rayforge
   converts them to short straight moves.
 
