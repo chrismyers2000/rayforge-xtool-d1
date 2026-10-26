@@ -76,17 +76,19 @@ Tested with Rayforge 1.13.0 on Linux.
    addon. In the Addon Registry window click **Install from URL...** and
    paste this repository's URL:
    `https://github.com/chrismyers2000/rayforge-xtool-d1`
-2. If the new machine profiles don't show up right away, restart
-   Rayforge once.
+2. **Restart Rayforge once.** The addon loads straight away, but the
+   device profiles are only copied into Rayforge on startup, so the
+   D1 profiles won't appear in the add-machine wizard until then.
 3. Add a machine (the add-machine wizard) and pick **xTool D1 10W
    (Wi-Fi)** or **xTool D1 10W** (USB). The hardware details come
    pre-filled. For Wi-Fi, enter the D1's IP address and port 8080. For USB
    pick the port, or enter `1a86:7523` in the "Match by USB VID:PID"
    entry so it survives a power cycle.
 
-The Install from URL route is not tested yet: what was tested is the
-manual install below. A "No stored version ... UnknownVersion" warning in
-the log is harmless.
+Install from URL was tested on a fresh Rayforge 1.13.0 config: it
+cloned the repository, validated it and loaded the addon, and the
+profiles appeared after the restart. A "No stored version ...
+UnknownVersion" warning in the log is harmless.
 
 ### Manual install
 
