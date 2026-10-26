@@ -55,7 +55,11 @@ test only moved the head in a straight line. The profiles keep
 `supports_arcs` and `supports_curves` off, so Rayforge turns circles and
 curves into short straight moves. A 20 mm circle cut that way (64
 segments, laser on at 10%, 500 mm/min) came out round and closed, with
-every point within 0.001 mm of the 10 mm radius in the file.
+every point within 0.001 mm of the 10 mm radius in the file. Three
+small circles (2, 4 and 6 mm across) and the text "D1 TEST" (about 33 mm
+wide and 6 mm tall, 210 short steps, the smallest 0.23 mm) were cut at 10%
+and 600 mm/min on paper: the circles closed and every letter was clean
+and readable.
 
 ## Safety
 
