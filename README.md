@@ -54,7 +54,8 @@ A "No stored version ... UnknownVersion" warning in the log is harmless.
 
 - Cutting and engraving, including variable-power rasters (tested over
   Wi-Fi).
-- Framing, with the D1's crosshair light on.
+- Framing, as a laser-off outline. Don't add `M106 S1` (the crosshair)
+  to a job: on this firmware it switches the cutting laser on.
 - Circles, curves and text. The D1 ignores `G2`/`G3` arcs, so Rayforge
   converts them to short straight moves.
 

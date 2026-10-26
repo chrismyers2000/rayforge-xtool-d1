@@ -10,7 +10,8 @@ GRBL. What is verified on a D1 10W (firmware 40.30.002.01 B1):
 * ``?`` replies ``<MPos:x,y,z,w>`` with no state word.
 * There is no ``$J`` jog and no homing.
 * ``M3 S<n>`` fires the cutting laser, ``M4`` does not.
-* ``M106 S0`` / ``M106 S1`` switch the framing crosshair off / on.
+* ``M106 S0`` switches the framing crosshair off. ``M106 S1`` was seen to
+  switch the *cutting* laser on (at the last ``M3`` power), so never send it.
 * A 3 s idle timer in the firmware turns the motors off (``M18``).
 
 This driver sends one line and waits for ``ok``, but the D1 acknowledges a

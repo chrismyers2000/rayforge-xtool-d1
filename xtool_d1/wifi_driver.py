@@ -79,7 +79,6 @@ class XToolD1WifiDriver(Driver):
         self.auto_start = False
         self.keep_running = False
         self._ping_task: asyncio.Task | None = None
-        self._framing = False
 
     @property
     def machine_space_wcs(self) -> str:
@@ -308,13 +307,8 @@ class XToolD1WifiDriver(Driver):
                     result = on_command_done(op_index)
                     if inspect.isawaitable(result):
                         await result
-            text = (
-                self._crosshair_on(encoded.text)
-                if self._framing
-                else encoded.text
-            )
-            await self._upload(text)
-            self._keep_copy(text)
+            await self._upload(encoded.text)
+            self._keep_copy(encoded.text)
             await self._enter_ack_mode()
             if self.auto_start:
                 await self._get(f"/read?file={quote(STORED_FILE, safe='/')}")
@@ -334,24 +328,6 @@ class XToolD1WifiDriver(Driver):
             raise
         finally:
             self.job_finished.send(self)
-
-    async def frame(self, *args: Any, **kwargs: Any) -> None:
-        """Frame with the D1's crosshair light on while the head moves."""
-        self._framing = True
-        try:
-            await super().frame(*args, **kwargs)
-        finally:
-            self._framing = False
-
-    @staticmethod
-    def _crosshair_on(gcode: str) -> str:
-        """Turn the first ``M106 S0`` into ``M106 S1``; the last stays."""
-        lines = gcode.splitlines()
-        for i, line in enumerate(lines):
-            if line.strip().startswith("M106 S0"):
-                lines[i] = "M106 S1 ;Framing laser on"
-                break
-        return "\n".join(lines) + "\n"
 
     async def run_raw(self, machine_code: str) -> None:
         for raw in machine_code.splitlines():
