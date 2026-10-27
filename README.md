@@ -51,9 +51,22 @@ keeps working, without the newer features.
 | Wi-Fi: Pause, Resume, Cancel from Rayforge | not available (the firmware has no such call) | verified with the laser off |
 | Wi-Fi: job running / idle shown in Rayforge | not available | verified (Pause becomes clickable while a job runs) |
 | Laser-on lines and contours (Wi-Fi) | verified | verified: a 20 mm line and a Rayforge-made 22 × 20 mm square at 10%, 600 mm/min |
-| Rasters, crosshair (`M106`), auto start | verified | not re-tested |
+| Rasters (Wi-Fi) | verified | verified smooth with the driver's rewrite (below): a five-shade raster, paused and cancelled partway |
+| Crosshair (`M106`), auto start | verified | not re-tested |
 | The D1's button on an uploaded job | press 1 frames, press 2 runs, press 3 pauses | press 1 runs the job (observed once) |
 
+- **Smooth motion on 40.30.010.01.** Unchanged, Rayforge's jobs jitter on
+  this firmware: the head nearly stops where one move meets the next, and
+  each `M3` power change stops it. On 40.30.010.01 or newer the Wi-Fi
+  driver therefore rewrites each job before uploading it: `M204 F6000`
+  (junction speed; the D1's default is 300) and `M205 X1800` at the
+  start, one `M3 S0`, the power as `S` on each move, `S0` on the moves
+  between rows instead of `M5`, and the defaults (`M204 F300`,
+  `M205 X450`) restored at the end. A cancelled job skips that last step;
+  the faster values then stay set (they survived reopening the USB port;
+  whether a power cycle resets them is not checked). The saved copy of
+  the job is the rewritten one. Older firmware gets Rayforge's G-code
+  unchanged. USB jobs are not rewritten.
 - On 40.30.010.01, Cancel sends the D1's stop call and then `M5`; what the
   laser does after a stop has not been checked, so the `M5` is a
   precaution.
@@ -112,6 +125,10 @@ and other D1 models.
   skipping the D1's own frame step. It uses an undocumented call, is off by
   default, and has been seen to switch the cutting laser on. Prefer the
   button.
+- **Return to origin after a job** (Wi-Fi, off by default): adds `M5`
+  and `G0 X0 Y0` after the job's last move. Rayforge's jobs otherwise end
+  wherever the last move does. Not added to Frame jobs, and a cancelled
+  job does not return.
 - Each Wi-Fi upload is saved as `xtool-d1-last-job.gcode` in Rayforge's
   config folder, so you can read it before running it.
 
@@ -140,6 +157,7 @@ and other D1 models.
 - `xtool_d1/wifi_driver.py`: the Wi-Fi driver (HTTP API on port 8080).
 - `xtool_d1/firmware.py`: firmware version parsing and which version has
   what.
+- `xtool_d1/smooth.py`: the job rewrite for 40.30.010.01.
 - `xtool_d1/profile/`: device and G-code dialect definitions.
 - Tests: from a Rayforge checkout, run
   `pixi run python -m unittest discover -s <addon>/tests` (the Wi-Fi tests

@@ -69,14 +69,16 @@ class _Signal:
         self.sent += 1
 
 
-def make_driver(port, auto_start=False, firmware=None):
+def make_driver(port, auto_start=False, firmware=None, return_home=False):
     drv = object.__new__(XToolD1WifiDriver)
     drv.host, drv.port, drv.auto_start = "127.0.0.1", port, auto_start
+    drv.return_home = return_home
     drv.keep_running = False
     drv._framing = False
     drv.firmware = firmware
     drv._is_paused = False
     drv._toast = lambda message: None
+    drv._keep_copy = lambda gcode: None  # keep the user's real copy
     drv.state = DeviceState()
     for name in ("state_changed", "job_finished", "connection_status_changed"):
         setattr(drv, name, _Signal())
@@ -119,6 +121,42 @@ class WifiDriverTest(unittest.IsolatedAsyncioTestCase):
             [("POST", "/cnc/data?filetype=1"), ("GET", "/cmd?cmd=$I")],
         )
         self.assertEqual(drv.job_finished.sent, 1)
+
+    async def test_run_smooths_moves_on_new_firmware(self):
+        drv = make_driver(self.port, firmware=Firmware(40, 30, 10, 1, "B2"))
+        await drv.run(self.encoded("M3 S100\nG1 X10 F600\nM5\n"), None, None)
+        self.assertIn("M204 F6000", self.d1.stored)
+        self.assertIn("G1 X10 F600 S100", self.d1.stored)
+
+    async def test_return_home_is_off_by_default(self):
+        drv = make_driver(self.port)
+        await drv.run(self.encoded("G1 X10 F600\nM5\n"), None, None)
+        self.assertNotIn("X0 Y0", self.d1.stored)
+
+    async def test_return_home_after_last_move(self):
+        drv = make_driver(self.port, return_home=True)
+        await drv.run(
+            self.encoded("M3 S100\nG1 X10 F600\nM5 ;off\nM106 S0\n"),
+            None, None,
+        )
+        self.assertEqual(
+            self.d1.stored.splitlines(),
+            ["M3 S100", "G1 X10 F600", "M5", "G0 X0 Y0 ;Return to origin",
+             "M5 ;off", "M106 S0"],
+        )
+
+    async def test_return_home_with_smoothing(self):
+        drv = make_driver(
+            self.port, firmware=Firmware(40, 30, 10, 1, "B2"), return_home=True
+        )
+        await drv.run(self.encoded("M3 S100\nG1 X10 F600\nM5\n"), None, None)
+        self.assertIn("G0 X0 Y0 S0", self.d1.stored)
+
+    async def test_frame_does_not_return_home(self):
+        drv = make_driver(self.port, return_home=True)
+        drv._framing = True
+        await drv.run(self.encoded("M106 S0\nG0 X1\n"), None, None)
+        self.assertNotIn("X0 Y0", self.d1.stored)
 
     async def test_auto_start_requests_the_stored_file(self):
         drv = make_driver(self.port, auto_start=True)

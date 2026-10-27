@@ -55,6 +55,7 @@ from rayforge.pipeline.encoder.base import EncodedOutput, OpsEncoder
 from rayforge.pipeline.encoder.gcode import GcodeEncoder
 
 from .firmware import Firmware, has_job_control, parse_version
+from .smooth import needs_smoothing, smooth_moves
 
 if TYPE_CHECKING:
     from raygeo.ops import Ops
@@ -91,6 +92,7 @@ class XToolD1WifiDriver(Driver):
         self.host = ""
         self.port = DEFAULT_PORT
         self.auto_start = False
+        self.return_home = False
         self.keep_running = False
         self._ping_task: asyncio.Task | None = None
         self._framing = False
@@ -149,6 +151,15 @@ class XToolD1WifiDriver(Driver):
                     ),
                     default=False,
                 ),
+                BoolVar(
+                    key="return_home",
+                    label=_("Return to origin after a job"),
+                    description=_(
+                        "Moves the head back to X0 Y0, laser off, when a "
+                        "job ends. A cancelled job does not return."
+                    ),
+                    default=False,
+                ),
             ]
         )
 
@@ -164,6 +175,7 @@ class XToolD1WifiDriver(Driver):
         self.host = host
         self.port = int(kwargs.get("port", DEFAULT_PORT))
         self.auto_start = bool(kwargs.get("auto_start", False))
+        self.return_home = bool(kwargs.get("return_home", False))
 
     async def cleanup(self) -> None:
         self.keep_running = False
@@ -379,6 +391,10 @@ class XToolD1WifiDriver(Driver):
                 if self._framing
                 else encoded.text
             )
+            if self.return_home and not self._framing:
+                text = self._return_home(text)
+            if needs_smoothing(self.firmware):
+                text = smooth_moves(text)
             await self._upload(text)
             self._keep_copy(text)
             await self._enter_ack_mode()
@@ -418,6 +434,18 @@ class XToolD1WifiDriver(Driver):
             if line.strip().startswith("M106 S0"):
                 lines[i] = "M106 S1 ;Framing laser on"
                 break
+        return "\n".join(lines) + "\n"
+
+    @staticmethod
+    def _return_home(gcode: str) -> str:
+        """Add laser off and ``G0 X0 Y0`` after the job's last move."""
+        lines = gcode.splitlines()
+        moves = [
+            i for i, line in enumerate(lines)
+            if line.strip().upper().startswith(("G0", "G1"))
+        ]
+        at = moves[-1] + 1 if moves else len(lines)
+        lines[at:at] = ["M5", "G0 X0 Y0 ;Return to origin"]
         return "\n".join(lines) + "\n"
 
     async def run_raw(self, machine_code: str) -> None:
