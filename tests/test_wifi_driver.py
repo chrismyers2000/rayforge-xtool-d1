@@ -11,9 +11,15 @@ try:
     from aiohttp import web
 
     from rayforge.machine.driver.driver import DeviceConnectionError
+    from rayforge.machine.driver.driver import DeviceState, DeviceStatus
+    from xtool_d1.firmware import Firmware
     from xtool_d1.wifi_driver import XToolD1WifiDriver
 except ImportError:  # run with Rayforge's environment
     XToolD1WifiDriver = None
+
+
+OLD_FW = '{"result":"ok","sn":"X","version":"V40.30.002.01 B1"}'
+NEW_FW = '{"result":"ok","sn":"X","version":"V40.30.010.01 B2"}'
 
 
 class FakeD1:
@@ -21,6 +27,24 @@ class FakeD1:
         self.requests = []
         self.stored = None
         self.upload_reply = upload_reply
+        self.version_reply = NEW_FW
+        self.working = "0"
+        self.action_reply = '{"result":"ok"}'
+
+    async def system(self, request):
+        self.requests.append(("GET", request.path_qs))
+        action = request.query.get("action")
+        if action == "version":
+            return web.Response(text=self.version_reply)
+        if action == "get_working_sta":
+            return web.Response(
+                text=f'{{"result":"ok","working":"{self.working}"}}'
+            )
+        return web.Response(text='{"result":"fail"}')
+
+    async def job_action(self, request):
+        self.requests.append(("GET", request.path_qs))
+        return web.Response(text=self.action_reply)
 
     async def ping(self, request):
         self.requests.append(("GET", request.path_qs))
@@ -45,12 +69,15 @@ class _Signal:
         self.sent += 1
 
 
-def make_driver(port, auto_start=False):
+def make_driver(port, auto_start=False, firmware=None):
     drv = object.__new__(XToolD1WifiDriver)
     drv.host, drv.port, drv.auto_start = "127.0.0.1", port, auto_start
     drv.keep_running = False
     drv._framing = False
-    drv.state = SimpleNamespace(status=None, error=None)
+    drv.firmware = firmware
+    drv._is_paused = False
+    drv._toast = lambda message: None
+    drv.state = DeviceState()
     for name in ("state_changed", "job_finished", "connection_status_changed"):
         setattr(drv, name, _Signal())
     return drv
@@ -65,6 +92,8 @@ class WifiDriverTest(unittest.IsolatedAsyncioTestCase):
         app.router.add_post("/cnc/data", self.d1.upload)
         app.router.add_get("/read", self.d1.other)
         app.router.add_get("/cmd", self.d1.other)
+        app.router.add_get("/system", self.d1.system)
+        app.router.add_get("/cnc/data", self.d1.job_action)
         self.runner = web.AppRunner(app)
         await self.runner.setup()
         site = web.TCPSite(self.runner, "127.0.0.1", 0)
@@ -159,6 +188,89 @@ class WifiDriverTest(unittest.IsolatedAsyncioTestCase):
         drv = make_driver(self.port)
         self.assertFalse(drv.can_jog())
         self.assertFalse(drv.can_home())
+
+    # -- firmware versions -------------------------------------------------
+
+    async def test_reads_new_firmware(self):
+        drv = make_driver(self.port)
+        await drv._read_firmware()
+        self.assertEqual(drv.firmware, Firmware(40, 30, 10, 1, "B2"))
+
+    async def test_reads_old_firmware(self):
+        self.d1.version_reply = OLD_FW
+        drv = make_driver(self.port)
+        await drv._read_firmware()
+        self.assertEqual(drv.firmware, Firmware(40, 30, 2, 1, "B1"))
+
+    async def test_unreadable_version_does_not_raise(self):
+        drv = make_driver(1)  # nothing listens here
+        await drv._read_firmware()
+        self.assertIsNone(drv.firmware)
+
+    async def test_old_firmware_polls_ping(self):
+        drv = make_driver(self.port, firmware=Firmware(40, 30, 2, 1, "B1"))
+        self.assertEqual(await drv._poll_once(), DeviceStatus.IDLE)
+        self.assertEqual(self.d1.requests, [("GET", "/ping")])
+
+    async def test_new_firmware_reports_running(self):
+        drv = make_driver(self.port, firmware=Firmware(40, 30, 10, 1, "B2"))
+        self.assertEqual(await drv._poll_once(), DeviceStatus.IDLE)
+        for working in ("1", "2"):
+            self.d1.working = working
+            self.assertEqual(await drv._poll_once(), DeviceStatus.RUN)
+
+    async def test_new_firmware_stop(self):
+        drv = make_driver(self.port, firmware=Firmware(40, 30, 10, 1, "B2"))
+        await drv.cancel()
+        self.assertEqual(
+            self.d1.requests,
+            [("GET", "/cnc/data?action=stop"), ("GET", "/cmd?cmd=M5")],
+        )
+        self.assertEqual(drv.job_finished.sent, 1)
+
+    async def test_old_firmware_cancel_sends_nothing(self):
+        drv = make_driver(self.port, firmware=Firmware(40, 30, 2, 1, "B1"))
+        await drv.cancel()
+        self.assertEqual(self.d1.requests, [])
+        self.assertEqual(drv.job_finished.sent, 1)
+
+    async def test_unknown_firmware_cancel_sends_nothing(self):
+        drv = make_driver(self.port)
+        await drv.cancel()
+        self.assertEqual(self.d1.requests, [])
+
+    async def test_pause_and_resume(self):
+        drv = make_driver(self.port, firmware=Firmware(40, 30, 10, 1, "B2"))
+        self.d1.working = "2"
+        await drv.set_hold(True)
+        self.assertEqual(await drv._poll_once(), DeviceStatus.HOLD)
+        await drv.set_hold(False)
+        self.assertEqual(await drv._poll_once(), DeviceStatus.RUN)
+        self.assertIn(("GET", "/cnc/data?action=pause"), self.d1.requests)
+        self.assertIn(("GET", "/cnc/data?action=resume"), self.d1.requests)
+
+    async def test_refused_pause_keeps_running(self):
+        drv = make_driver(self.port, firmware=Firmware(40, 30, 10, 1, "B2"))
+        self.d1.working = "2"
+        self.d1.action_reply = '{"result":"fail"}'
+        await drv.set_hold(True)
+        self.assertEqual(await drv._poll_once(), DeviceStatus.RUN)
+
+    async def test_status_change_hands_rayforge_a_new_state(self):
+        # Rayforge ignores a state object it already holds.
+        drv = make_driver(self.port, firmware=Firmware(40, 30, 10, 1, "B2"))
+        before = drv.state
+        self.d1.working = "2"
+        drv._set_device_status(await drv._poll_once())
+        self.assertIsNot(drv.state, before)
+        self.assertEqual(drv.state.status, DeviceStatus.RUN)
+        self.assertNotEqual(drv.state, before)
+        self.assertEqual(drv.state_changed.sent, 1)
+
+    async def test_old_firmware_pause_sends_nothing(self):
+        drv = make_driver(self.port, firmware=Firmware(40, 30, 2, 1, "B1"))
+        await drv.set_hold(True)
+        self.assertEqual(self.d1.requests, [])
 
 
 if __name__ == "__main__":

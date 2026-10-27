@@ -2,7 +2,8 @@
 xTool D1 serial driver.
 
 The D1 speaks a GRBL-flavoured line protocol at 230400 baud, but is not
-GRBL. What is verified on a D1 10W (firmware 40.30.002.01 B1):
+GRBL. What is verified on a D1 10W (firmware 40.30.002.01 B1; the ``$I``
+reply's identity line is ``[XTool`` there and ``[xTool`` on 40.30.010.01):
 
 * Opening the port resets the board. It boots into "app mode": it
   streams ``ok:512`` / ``ok:IDLE`` heartbeats and does not acknowledge
@@ -23,6 +24,7 @@ verified way to stop the machine.
 import asyncio
 import logging
 import re
+from dataclasses import replace
 from collections.abc import Awaitable, Callable
 from gettext import gettext as _
 from typing import TYPE_CHECKING, Any
@@ -47,6 +49,7 @@ from rayforge.pipeline.encoder.base import (
 )
 from rayforge.pipeline.encoder.gcode import GcodeEncoder
 
+from .firmware import Firmware, is_identity_line, parse_version
 from .pacing import MovePacer
 
 if TYPE_CHECKING:
@@ -125,6 +128,7 @@ class XToolD1Driver(Driver):
         self._status_seen = asyncio.Event()
         self._pacer = MovePacer((0.0, 0.0))
         self._current_op_index = -1
+        self.firmware: Firmware | None = None
 
     @property
     def machine_space_wcs(self) -> str:
@@ -294,12 +298,19 @@ class XToolD1Driver(Driver):
         self, status: TransportStatus, message: str = ""
     ) -> None:
         if status == TransportStatus.CONNECTED:
-            self.state.status = DeviceStatus.IDLE
+            self._publish_state(status=DeviceStatus.IDLE)
         elif status in (TransportStatus.ERROR, TransportStatus.SLEEPING):
-            self.state.status = DeviceStatus.UNKNOWN
+            self._publish_state(status=DeviceStatus.UNKNOWN)
         self.connection_status_changed.send(
             self, status=status, message=message
         )
+
+    def _publish_state(self, **changes: Any) -> None:
+        """Hand Rayforge a new DeviceState with *changes*. Rayforge only
+        passes a state on when it differs from the object it already
+        holds, so a state edited in place is never seen."""
+        self.state = replace(self.state, **changes)
+        self.state_changed.send(self, state=self.state)
 
     # -- serial I/O ----------------------------------------------------
 
@@ -349,7 +360,11 @@ class XToolD1Driver(Driver):
                     )
             return
 
-        if line.startswith("[XTool"):
+        if is_identity_line(line):
+            firmware = parse_version(line)
+            if firmware != self.firmware:
+                self.firmware = firmware
+                logger.info(f"D1 firmware: {firmware or 'unknown'} ({line})")
             self._ack_mode.set()
             if self._pending:
                 self._pending.response_lines.append(line)
@@ -379,14 +394,15 @@ class XToolD1Driver(Driver):
         if not match:
             return
         x, y, z = (float(match.group(i)) for i in (1, 2, 3))
-        self.state.machine_pos = (x, y, z)
-        self.state.work_pos = (x, y, z)
         self._status_seen.set()
-        if self.state.status in (DeviceStatus.UNKNOWN, DeviceStatus.IDLE):
-            self.state.status = (
+        status = self.state.status
+        if status in (DeviceStatus.UNKNOWN, DeviceStatus.IDLE):
+            status = (
                 DeviceStatus.RUN if self._job_running else DeviceStatus.IDLE
             )
-        self.state_changed.send(self, state=self.state)
+        self._publish_state(
+            machine_pos=(x, y, z), work_pos=(x, y, z), status=status
+        )
 
     # -- jobs ----------------------------------------------------------
 
@@ -401,8 +417,7 @@ class XToolD1Driver(Driver):
         self._job_running = True
         self._on_command_done = on_command_done
         self._current_op_index = -1
-        self.state.status = DeviceStatus.RUN
-        self.state_changed.send(self, state=self.state)
+        self._publish_state(status=DeviceStatus.RUN)
 
     async def _stream(
         self,
@@ -465,8 +480,7 @@ class XToolD1Driver(Driver):
             self._on_command_done = None
             if completed or not self._is_cancelled:
                 self.job_finished.send(self)
-            self.state.status = DeviceStatus.IDLE
-            self.state_changed.send(self, state=self.state)
+            self._publish_state(status=DeviceStatus.IDLE)
 
     async def _sleep_unless_cancelled(self, seconds: float) -> bool:
         """Sleeps in short steps. Returns False if the job was cancelled."""
@@ -600,8 +614,7 @@ class XToolD1Driver(Driver):
         pass
 
     async def clear_alarm(self) -> None:
-        self.state.error = None
-        self.state_changed.send(self, state=self.state)
+        self._publish_state(error=None)
 
     async def set_power(self, head: "Laser", percent: float) -> None:
         if percent <= 0:

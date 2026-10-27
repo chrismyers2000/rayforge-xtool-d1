@@ -12,15 +12,25 @@ and run it with its own streamer. This driver only uses that:
   ``GET /read?file=/tmp.gcode``, which was seen to start the stored job
   but is not documented anywhere.
 * ``GET /cmd?cmd=<line>`` runs one G-code line (used by the console).
+* ``GET /system?action=version`` on connect, to see what the firmware has.
 
-There is no position, jogging, homing, progress or software stop: the D1
-only reports position on its serial port. To stop a job, use the
-machine's button or its power switch.
+Firmware 40.30.010.01 and newer also have ``GET /cnc/data?action=pause|
+resume|stop`` and ``GET /system?action=get_working_sta`` (0 idle, 1 running
+from ``/read``, 2 running from the button; documented for the D1 Pro by
+github.com/1RandomDev/xTool-Connect). On those the driver reports whether
+a job runs, and Rayforge's Pause and Cancel use them. On older firmware
+there is no status or software stop: use the machine's button or its
+power switch.
+
+There is no position, jogging or homing: the D1 only reports position on
+its serial port.
 """
 
 import asyncio
 import inspect
 import logging
+import re
+from dataclasses import replace
 from collections.abc import Awaitable, Callable
 from gettext import gettext as _
 from typing import TYPE_CHECKING, Any
@@ -44,6 +54,8 @@ from rayforge.machine.transport import TransportStatus
 from rayforge.pipeline.encoder.base import EncodedOutput, OpsEncoder
 from rayforge.pipeline.encoder.gcode import GcodeEncoder
 
+from .firmware import Firmware, has_job_control, parse_version
+
 if TYPE_CHECKING:
     from raygeo.ops import Ops
 
@@ -56,6 +68,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_PORT = 8080
 PING_INTERVAL_S = 5.0
+# With get_working_sta the poll is also the job status, so it runs faster.
+STATUS_INTERVAL_S = 1.0
 HTTP_TIMEOUT_S = 5.0
 UPLOAD_TIMEOUT_S = 60.0
 STORED_FILE = "/tmp.gcode"
@@ -80,6 +94,8 @@ class XToolD1WifiDriver(Driver):
         self.keep_running = False
         self._ping_task: asyncio.Task | None = None
         self._framing = False
+        self.firmware: Firmware | None = None
+        self._is_paused = False
 
     @property
     def machine_space_wcs(self) -> str:
@@ -162,41 +178,89 @@ class XToolD1WifiDriver(Driver):
         if self._ping_task and not self._ping_task.done():
             self._ping_task.cancel()
         self.keep_running = True
+        await self._read_firmware()
         self._ping_task = asyncio.ensure_future(self._ping_loop())
         await self._enter_ack_mode()
+
+    async def _read_firmware(self) -> None:
+        try:
+            reply = await self._get("/system?action=version")
+        except DeviceConnectionError as e:
+            logger.warning("Could not read the D1's firmware version: %s", e)
+            return
+        self.firmware = parse_version(reply)
+        logger.info(
+            "D1 firmware: %s; Wi-Fi pause/stop %s",
+            self.firmware or "unknown",
+            "available" if has_job_control(self.firmware) else "not available",
+        )
 
     def _update_connection_status(
         self, status: TransportStatus, message: str = ""
     ) -> None:
-        if status == TransportStatus.CONNECTED:
-            self.state.status = DeviceStatus.IDLE
-        else:
-            self.state.status = DeviceStatus.UNKNOWN
+        self._publish_state(
+            status=DeviceStatus.IDLE
+            if status == TransportStatus.CONNECTED
+            else DeviceStatus.UNKNOWN
+        )
         self.connection_status_changed.send(
             self, status=status, message=message
         )
+
+    def _set_device_status(self, status: DeviceStatus) -> None:
+        if status != self.state.status:
+            self._publish_state(status=status)
+
+    def _publish_state(self, **changes: Any) -> None:
+        """Hand Rayforge a new DeviceState with *changes*. Rayforge only
+        passes a state on when it differs from the object it already
+        holds, so a state edited in place is never seen."""
+        self.state = replace(self.state, **changes)
         self.state_changed.send(self, state=self.state)
+
+    async def _poll_once(self) -> DeviceStatus:
+        """One reachability check; on job-control firmware also the job
+        status. Raises DeviceConnectionError when the D1 cannot be reached."""
+        if not has_job_control(self.firmware):
+            reply = await self._get("/ping")
+            if '"ok"' not in reply:
+                raise DeviceConnectionError(f"Unexpected: {reply}")
+            return DeviceStatus.IDLE
+        reply = await self._get("/system?action=get_working_sta")
+        match = re.search(r'"working"\s*:\s*"?(\d+)', reply)
+        if not match:
+            raise DeviceConnectionError(f"Unexpected: {reply}")
+        working = match.group(1)
+        if working == "0":
+            self._is_paused = False
+            return DeviceStatus.IDLE
+        if working not in ("1", "2"):
+            logger.info("D1 reports working state %s", working)
+        return DeviceStatus.HOLD if self._is_paused else DeviceStatus.RUN
 
     async def _ping_loop(self) -> None:
         last = None
         try:
             while self.keep_running:
+                if self.firmware is None:
+                    await self._read_firmware()
+                device_status = None
                 try:
-                    reply = await self._get("/ping")
-                    ok = '"ok"' in reply
-                    status = (
-                        TransportStatus.CONNECTED
-                        if ok
-                        else TransportStatus.ERROR
-                    )
-                    message = "Connected" if ok else f"Unexpected: {reply}"
+                    device_status = await self._poll_once()
+                    status, message = TransportStatus.CONNECTED, "Connected"
                 except (DeviceConnectionError, asyncio.TimeoutError) as e:
                     status = TransportStatus.SLEEPING
                     message = str(e) or "No answer"
                 if (status, message) != last:
                     self._update_connection_status(status, message)
                     last = (status, message)
-                await asyncio.sleep(PING_INTERVAL_S)
+                if device_status is not None:
+                    self._set_device_status(device_status)
+                await asyncio.sleep(
+                    STATUS_INTERVAL_S
+                    if has_job_control(self.firmware)
+                    else PING_INTERVAL_S
+                )
         except asyncio.CancelledError:
             pass
 
@@ -361,16 +425,53 @@ class XToolD1WifiDriver(Driver):
             if line:
                 await self._command(line)
 
+    async def _job_action(self, action: str) -> bool:
+        """``GET /cnc/data?action=<action>``; True when the D1 says ok
+        (it answers fail when the action does not fit its state)."""
+        reply = await self._get(f"/cnc/data?action={action}")
+        ok = '"ok"' in reply
+        if not ok:
+            logger.warning("The D1 refused '%s': %s", action, reply)
+        return ok
+
     async def cancel(self, emergency: bool = False) -> None:
-        # A stored job cannot be stopped from here.
-        logger.warning(
-            "The D1 cannot be stopped over Wi-Fi: press the button on the "
-            "machine, or use its power switch."
-        )
-        self.job_finished.send(self)
+        if not has_job_control(self.firmware):
+            logger.warning(
+                "This D1 firmware (%s) cannot be stopped over Wi-Fi: press "
+                "the button on the machine, or use its power switch. "
+                "Firmware 40.30.010.01 or newer can.",
+                self.firmware or "unknown",
+            )
+            self._toast(_("Stop the D1 with its button or power switch."))
+            self.job_finished.send(self)
+            return
+        try:
+            stopped = await self._job_action("stop")
+            # The laser state after a stop is unverified: switch it off.
+            await self._command("M5")
+        except DeviceConnectionError as e:
+            self._toast(_("Could not stop the D1: {err}").format(err=e))
+            raise
+        finally:
+            self.job_finished.send(self)
+        self._is_paused = False
+        if stopped:
+            self._toast(_("Stop sent to the D1."))
+            self._set_device_status(DeviceStatus.IDLE)
 
     async def set_hold(self, hold: bool = True) -> None:
-        logger.warning("Hold is not supported by the xTool D1.")
+        if not has_job_control(self.firmware):
+            logger.warning(
+                "This D1 firmware (%s) cannot pause over Wi-Fi; firmware "
+                "40.30.010.01 or newer can.",
+                self.firmware or "unknown",
+            )
+            return
+        if await self._job_action("pause" if hold else "resume"):
+            self._is_paused = hold
+            self._set_device_status(
+                DeviceStatus.HOLD if hold else DeviceStatus.RUN
+            )
 
     # -- not supported over Wi-Fi --------------------------------------
 
@@ -393,8 +494,7 @@ class XToolD1WifiDriver(Driver):
         pass
 
     async def clear_alarm(self) -> None:
-        self.state.error = None
-        self.state_changed.send(self, state=self.state)
+        self._publish_state(error=None)
 
     async def set_power(self, head: "Laser", percent: float) -> None:
         raise NotImplementedError("Laser control is not supported over Wi-Fi.")

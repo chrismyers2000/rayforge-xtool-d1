@@ -4,7 +4,8 @@ Serial (USB) and Wi-Fi drivers, with device profiles, that let Rayforge 1.13
 run an xTool D1 / D1 10W diode laser from Linux.
 
 **Experimental.** Written with AI assistance and tested on one machine (a
-D1 10W, firmware 40.30.002.01 B1, Rayforge 1.13.0). It has not been reviewed
+D1 10W on firmware 40.30.002.01 B1 and then 40.30.010.01 B2, Rayforge
+1.13.0; see [Firmware](#firmware)). It has not been reviewed
 line by line by someone who knows Rayforge's internals. A laser can start
 fires and damage eyes. Use it at your own risk.
 
@@ -33,17 +34,47 @@ A "No stored version ... UnknownVersion" warning in the log is harmless.
 |---|---|---|
 | Cable | none | required |
 | Start a job | the D1's button: press 1 frames the job, press 2 runs it | from Rayforge |
-| Pause / stop | button press 3 pauses; power switch stops | power switch only |
+| Pause / stop | Rayforge's Pause and Cancel on firmware 40.30.010.01 or newer (see [Firmware](#firmware)); button press 3 pauses; power switch | power switch only |
+| Job running / idle in Rayforge | 40.30.010.01 or newer | no |
 | Position, jogging | no | yes |
+
+## Firmware
+
+The drivers read the D1's firmware version when they connect (shown in
+Rayforge's log) and only use features that version has. Older firmware
+keeps working, without the newer features.
+
+| Feature | 40.30.002.01 B1 | 40.30.010.01 B2 |
+|---|---|---|
+| USB: connect, jog, stream jobs | verified | connect verified; jobs not re-tested |
+| Wi-Fi: upload, start with the button | verified | verified |
+| Wi-Fi: Pause, Resume, Cancel from Rayforge | not available (the firmware has no such call) | verified with the laser off |
+| Wi-Fi: job running / idle shown in Rayforge | not available | verified (Pause becomes clickable while a job runs) |
+| Laser cuts, rasters, crosshair (`M106`), auto start | verified | not re-tested |
+
+- On 40.30.010.01, Cancel sends the D1's stop call and then `M5`; what the
+  laser does after a stop has not been checked, so the `M5` is a
+  precaution.
+- While the D1 frames a job (first button press) it reports idle, so
+  Rayforge shows idle then too. A paused job still reports "running" on
+  the D1; the driver remembers that it paused it.
+- Unknown or unreadable version: treated like 40.30.002.01.
+- Updating: xTool's own tools (the mobile app, xTool Creative Space) are
+  the supported route. On one D1 the mobile app's Wi-Fi update failed from
+  40.30.002.01; it was updated over USB with `esptool` instead (only the
+  app partition at `0x10000` written, Wi-Fi settings kept). Back up the
+  flash first if you try that.
 
 ## Safety
 
 - **Auto start can fire the cutting laser** (about 10%) even when the file
   has no `M3`. Started from the D1's button, the same file did not. Don't
   use auto start without eye protection and material under the head.
-- **Know your stop.** On Wi-Fi, a third button press pauses the job;
-  the power switch stops it. On USB, only the power switch is verified:
-  Rayforge's Cancel and the D1's button do not stop a streamed job.
+- **Know your stop.** On Wi-Fi with firmware 40.30.010.01 or newer,
+  Rayforge's Cancel stops the job (verified with the laser off). On older
+  firmware, a third button press pauses and the power switch stops it. On
+  USB, only the power switch is verified: Rayforge's Cancel and the D1's
+  button do not stop a streamed job.
 - **The D1 cannot home.** It treats wherever the head is at power-on as
   (0, 0). Park the head in the upper-left corner before powering on, and
   power-cycle after moving it by hand.
@@ -61,7 +92,8 @@ A "No stored version ... UnknownVersion" warning in the log is harmless.
   keeps the D1's crosshair light on for it (`M106 S1`). The D1 also frames
   on the first button press.
 
-Not tested: Z axis, rotary, other firmware versions and other D1 models.
+Not tested: Z axis, rotary, firmware versions other than the two above,
+and other D1 models.
 
 ## Tips
 
@@ -101,6 +133,8 @@ Not tested: Z axis, rotary, other firmware versions and other D1 models.
   in `rayforge_init`.
 - `xtool_d1/driver.py`, `pacing.py`: the USB driver and its move pacing.
 - `xtool_d1/wifi_driver.py`: the Wi-Fi driver (HTTP API on port 8080).
+- `xtool_d1/firmware.py`: firmware version parsing and which version has
+  what.
 - `xtool_d1/profile/`: device and G-code dialect definitions.
 - Tests: from a Rayforge checkout, run
   `pixi run python -m unittest discover -s <addon>/tests` (the Wi-Fi tests
