@@ -127,7 +127,6 @@ and other D1 models.
   USB driver polls position every 0.2 s during a job.
 - The D1 has no jog command, so USB jogging sends `G91`, a relative `G0`,
   then `G90`.
-- Rayforge sends `S102` for a 10% setting. I don't know why it isn't `S100`.
 - Power-cycling the D1 re-enumerates its USB adapter (often
   `/dev/ttyUSB1` instead of `0`). Use the VID:PID entry above.
 
