@@ -50,7 +50,8 @@ keeps working, without the newer features.
 | Wi-Fi: upload, start with the button | verified | verified |
 | Wi-Fi: Pause, Resume, Cancel from Rayforge | not available (the firmware has no such call) | verified with the laser off |
 | Wi-Fi: job running / idle shown in Rayforge | not available | verified (Pause becomes clickable while a job runs) |
-| Laser cuts, rasters, crosshair (`M106`), auto start | verified | not re-tested |
+| Laser-on lines and contours (Wi-Fi) | verified | verified: a 20 mm line and a Rayforge-made 22 × 20 mm square at 10%, 600 mm/min |
+| Rasters, crosshair (`M106`), auto start | verified | not re-tested |
 | The D1's button on an uploaded job | press 1 frames, press 2 runs, press 3 pauses | press 1 runs the job (observed once) |
 
 - On 40.30.010.01, Cancel sends the D1's stop call and then `M5`; what the
