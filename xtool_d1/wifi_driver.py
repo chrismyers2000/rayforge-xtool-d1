@@ -391,8 +391,9 @@ class XToolD1WifiDriver(Driver):
                     _("Job uploaded to the D1. Press its button to start.")
                 )
                 logger.warning(
-                    "Job uploaded. Press the button on the D1 to start it; "
-                    "press it again, or use the power switch, to stop it."
+                    "Job uploaded. Press the button on the D1 to start it. "
+                    "Stop it with Rayforge's Cancel (firmware 40.30.010.01 "
+                    "or newer) or the D1's power switch."
                 )
         except Exception as e:
             self._toast(_("Upload to the D1 failed: {err}").format(err=e))

@@ -33,8 +33,8 @@ A "No stored version ... UnknownVersion" warning in the log is harmless.
 | | Wi-Fi | USB |
 |---|---|---|
 | Cable | none | required |
-| Start a job | the D1's button: press 1 frames the job, press 2 runs it | from Rayforge |
-| Pause / stop | Rayforge's Pause and Cancel on firmware 40.30.010.01 or newer (see [Firmware](#firmware)); button press 3 pauses; power switch | power switch only |
+| Start a job | the D1's button (see [Firmware](#firmware) for what each press does) | from Rayforge |
+| Pause / stop | Rayforge's Pause and Cancel on firmware 40.30.010.01 or newer; the button pauses on 40.30.002.01; power switch | power switch only |
 | Job running / idle in Rayforge | 40.30.010.01 or newer | no |
 | Position, jogging | no | yes |
 
@@ -51,13 +51,15 @@ keeps working, without the newer features.
 | Wi-Fi: Pause, Resume, Cancel from Rayforge | not available (the firmware has no such call) | verified with the laser off |
 | Wi-Fi: job running / idle shown in Rayforge | not available | verified (Pause becomes clickable while a job runs) |
 | Laser cuts, rasters, crosshair (`M106`), auto start | verified | not re-tested |
+| The D1's button on an uploaded job | press 1 frames, press 2 runs, press 3 pauses | press 1 runs the job (observed once) |
 
 - On 40.30.010.01, Cancel sends the D1's stop call and then `M5`; what the
   laser does after a stop has not been checked, so the `M5` is a
   precaution.
-- While the D1 frames a job (first button press) it reports idle, so
-  Rayforge shows idle then too. A paused job still reports "running" on
-  the D1; the driver remembers that it paused it.
+- A paused job still reports "running" on the D1; the driver remembers
+  that it paused it.
+- On 40.30.010.01 the crosshair light stays on while the D1 is idle.
+  What a later button press does during a job is not yet known.
 - Unknown or unreadable version: treated like 40.30.002.01.
 - Updating: xTool's own tools (the mobile app, xTool Creative Space) are
   the supported route. On one D1 the mobile app's Wi-Fi update failed from
@@ -71,8 +73,10 @@ keeps working, without the newer features.
   has no `M3`. Started from the D1's button, the same file did not. Don't
   use auto start without eye protection and material under the head.
 - **Know your stop.** On Wi-Fi with firmware 40.30.010.01 or newer,
-  Rayforge's Cancel stops the job (verified with the laser off). On older
-  firmware, a third button press pauses and the power switch stops it. On
+  Rayforge's Cancel stops the job (verified with the laser off). On
+  40.30.002.01, a third button press pauses and the power switch stops it.
+  **On 40.30.010.01 the first button press runs the job straight away, with
+  no framing pass.** On
   USB, only the power switch is verified: Rayforge's Cancel and the D1's
   button do not stop a streamed job.
 - **The D1 cannot home.** It treats wherever the head is at power-on as
@@ -89,8 +93,9 @@ keeps working, without the newer features.
 - Cutting and engraving, including variable-power rasters (tested over
   Wi-Fi).
 - Framing: Rayforge's Frame sends an outline job, and the Wi-Fi driver
-  keeps the D1's crosshair light on for it (`M106 S1`). The D1 also frames
-  on the first button press.
+  keeps the D1's crosshair light on for it (`M106 S1`). On 40.30.002.01 the
+  D1 also frames on the first button press; on 40.30.010.01 it does not,
+  so use Rayforge's Frame first.
 
 Not tested: Z axis, rotary, firmware versions other than the two above,
 and other D1 models.
