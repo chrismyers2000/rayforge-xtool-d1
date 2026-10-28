@@ -42,8 +42,12 @@ def _fmt(power: float) -> str:
     return f"{power:.0f}"
 
 
-def smooth_moves(gcode: str) -> str:
-    """Move laser power from ``M3``/``M5`` lines onto the moves."""
+def smooth_lines(gcode: str) -> tuple[list[str], list[int | None]]:
+    """Move laser power from ``M3``/``M5`` lines onto the moves.
+
+    Returns the new lines and, for each, the index of the line it came
+    from in *gcode* (None for lines this adds), so that a caller that
+    streams the job can still tell which operation a line belongs to."""
     lines = gcode.splitlines()
     codes = [line.split(";", 1)[0].strip().upper() for line in lines]
     last_move = max(
@@ -51,18 +55,18 @@ def smooth_moves(gcode: str) -> str:
         default=-1,
     )
 
-    out = list(SETUP)
+    out: list[tuple[str, int | None]] = [(line, None) for line in SETUP]
     laser_mode = False  # one M3 S0 sent
     power = 0.0  # what the job asks for now
     sent = None  # the S value the D1 holds, if known
     for i, (line, code) in enumerate(zip(lines, codes)):
         if i > last_move or not code:
-            out.append(line)
+            out.append((line, i))
             continue
         words = _words(code)
         if code.startswith("M3") or code.startswith("M4"):
             if not laser_mode:
-                out.append("M3 S0")
+                out.append(("M3 S0", i))
                 laser_mode, sent = True, 0.0
             power = float(words.get("S", power))
             continue
@@ -77,14 +81,19 @@ def smooth_moves(gcode: str) -> str:
                 if sent != want:
                     line = f"{line.split(';', 1)[0].rstrip()} S{_fmt(want)}"
                     sent = want
-        out.append(line)
+        out.append((line, i))
 
     end = len(out)
-    while end > 0 and not out[end - 1].strip():
+    while end > 0 and not out[end - 1][0].strip():
         end -= 1
-    out[end:end] = RESTORE
+    out[end:end] = [(line, None) for line in RESTORE]
     if laser_mode and not any(
         c.startswith("M5") for c in codes[last_move + 1:]
     ):
-        out.insert(end, "M5")
-    return "\n".join(out) + "\n"
+        out.insert(end, ("M5", None))
+    return [line for line, _ in out], [src for _, src in out]
+
+
+def smooth_moves(gcode: str) -> str:
+    """:func:`smooth_lines` as one string."""
+    return "\n".join(smooth_lines(gcode)[0]) + "\n"

@@ -14,6 +14,14 @@ reply's identity line is ``[XTool`` there and ``[xTool`` on 40.30.010.01):
 * ``M106 S0`` / ``M106 S1`` switch the framing crosshair off / on.
 * A 3 s idle timer in the firmware turns the motors off (``M18``).
 
+On 40.30.010.01 and newer the 3 s cutoff of a single move and the stalls
+between queued moves are gone (laser-off tests), so moves are not split
+and the port is polled at the idle rate during a job, and a job is
+rewritten like the Wi-Fi driver does (``smooth.py``) so it runs without
+stopping at every join. Cancel therefore lets the move in progress finish:
+the ``M5`` it sends is queued behind that move (a 40 mm laser-on line at
+10 mm/s burned to its end). The power switch is the stop.
+
 This driver sends one line and waits for ``ok``, but the D1 acknowledges a
 command when it *queues* it, not when the move finishes. A whole job is
 therefore queued on the board within milliseconds and runs on its own.
@@ -49,8 +57,14 @@ from rayforge.pipeline.encoder.base import (
 )
 from rayforge.pipeline.encoder.gcode import GcodeEncoder
 
-from .firmware import Firmware, is_identity_line, parse_version
-from .pacing import MovePacer
+from .firmware import (
+    Firmware,
+    has_usb_quirks,
+    is_identity_line,
+    parse_version,
+)
+from .pacing import MAX_SEGMENT_S, MovePacer
+from .smooth import needs_smoothing, smooth_lines
 
 if TYPE_CHECKING:
     from raygeo.ops import Ops
@@ -278,7 +292,7 @@ class XToolD1Driver(Driver):
             return
         try:
             while transport.is_connected and self.keep_running:
-                # Polls during a job too, and faster: in testing the D1
+                # Polls during a job too, and faster on 40.30.002.01: it
                 # stalled between queued moves while the port was quiet.
                 async with self._cmd_lock:
                     if transport.is_connected:
@@ -288,7 +302,7 @@ class XToolD1Driver(Driver):
                             pass
                 await asyncio.sleep(
                     JOB_POLL_INTERVAL_S
-                    if self._job_running
+                    if self._job_running and has_usb_quirks(self.firmware)
                     else POLL_INTERVAL_S
                 )
         except asyncio.CancelledError:
@@ -423,7 +437,10 @@ class XToolD1Driver(Driver):
         self,
         lines: list[str],
         op_map: MachineCodeOpMap | None = None,
+        origin: list[int | None] | None = None,
     ) -> None:
+        """Sends *lines*. *origin*, when the lines were rewritten, gives
+        each one's line number in the text *op_map* was made for."""
         total = len(lines)
         sent = 0
         completed = False
@@ -431,6 +448,9 @@ class XToolD1Driver(Driver):
         # call: Rayforge's G-code console submits one line per call.
         x, y, _z = self.state.machine_pos
         pacer = self._pacer
+        pacer.max_segment_s = (
+            MAX_SEGMENT_S if has_usb_quirks(self.firmware) else None
+        )
         pacer.sync((x or 0.0, y or 0.0))
         try:
             for idx, line in enumerate(lines):
@@ -441,7 +461,12 @@ class XToolD1Driver(Driver):
                     sent += 1
                     continue
 
-                new_op = op_map.op_for_line(idx) if op_map else None
+                source = origin[idx] if origin is not None else idx
+                new_op = (
+                    op_map.op_for_line(source)
+                    if op_map and source is not None
+                    else None
+                )
                 if new_op is not None and new_op != self._current_op_index:
                     self._current_op_index = new_op
                     if self._on_command_done:
@@ -536,7 +561,11 @@ class XToolD1Driver(Driver):
         on_command_done: Callable[[int], None | Awaitable[None]] | None = None,
     ) -> None:
         self._start_job(on_command_done)
-        await self._stream(encoded.text.splitlines(), encoded.op_map)
+        if needs_smoothing(self.firmware):
+            lines, origin = smooth_lines(encoded.text)
+            await self._stream(lines, encoded.op_map, origin)
+        else:
+            await self._stream(encoded.text.splitlines(), encoded.op_map)
 
     async def run_raw(self, machine_code: str) -> None:
         lines = [x.strip() for x in machine_code.splitlines() if x.strip()]

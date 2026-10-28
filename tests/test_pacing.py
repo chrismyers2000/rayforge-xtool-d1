@@ -138,3 +138,25 @@ class MovePacerTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnsplitMovesTest(unittest.TestCase):
+    def test_no_limit_leaves_long_moves_whole(self):
+        pacer = MovePacer((0.0, 0.0), max_segment_s=None)
+        self.assertEqual(pacer.split("G1 X200 F1200"), ["G1 X200 F1200"])
+
+    def test_default_still_splits(self):
+        pacer = MovePacer((0.0, 0.0))
+        self.assertGreater(len(pacer.split("G1 X200 F1200")), 1)
+
+
+class FeedWordTest(unittest.TestCase):
+    def test_f_on_a_non_move_is_not_a_feed(self):
+        pacer, _ = make()
+        pacer.before_send("M204 F6000")
+        self.assertEqual(pacer.feed, DEFAULT_FEED)
+
+    def test_f_on_a_move_is_a_feed(self):
+        pacer, _ = make()
+        pacer.before_send("G1 X10 F1200")
+        self.assertEqual(pacer.feed, 1200.0)

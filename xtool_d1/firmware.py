@@ -36,6 +36,18 @@ def has_job_control(firmware: "Firmware | None") -> bool:
     return firmware is not None and firmware[:4] >= JOB_CONTROL_SINCE[:4]
 
 
+#: First version without the USB streaming quirks of 40.30.002.01 (laser-off
+#: tests, 2026-10-27): a single move is no longer abandoned after ~3 s, and
+#: the D1 no longer stalls between queued moves while the port is quiet.
+NO_USB_QUIRKS_SINCE = Firmware(40, 30, 10, 1)
+
+
+def has_usb_quirks(firmware: "Firmware | None") -> bool:
+    """True when streaming needs the 1 s move splitting and fast polling.
+    An unknown firmware counts as having them."""
+    return firmware is None or firmware[:4] < NO_USB_QUIRKS_SINCE[:4]
+
+
 def is_identity_line(line: str) -> bool:
     """True for the board's ``$I`` identity line, in either firmware's case."""
     return line.lower().startswith("[xtool")

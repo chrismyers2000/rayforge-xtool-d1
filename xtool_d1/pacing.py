@@ -33,8 +33,11 @@ class MovePacer:
         pos: tuple[float, float],
         clock: Callable[[], float] = time.monotonic,
         lookahead: float = LOOKAHEAD_S,
+        max_segment_s: float | None = MAX_SEGMENT_S,
     ):
         self.x, self.y = pos
+        #: None leaves moves whole (firmware without the 3 s cutoff).
+        self.max_segment_s = max_segment_s
         self.absolute = True
         self.feed = DEFAULT_FEED
         self._clock = clock
@@ -43,11 +46,13 @@ class MovePacer:
 
     def split(self, command: str) -> list[str]:
         """
-        Splits a long G0/G1 move into segments of at most MAX_SEGMENT_S,
-        because the D1 cuts off any single move after about 3 s. Other
-        commands, and moves it cannot split safely, come back unchanged.
-        Does not change the pacer's state.
+        Splits a long G0/G1 move into segments of at most max_segment_s,
+        because 40.30.002.01 cuts off any single move after about 3 s.
+        Other commands, and moves it cannot split safely, come back
+        unchanged. Does not change the pacer's state.
         """
+        if self.max_segment_s is None:
+            return [command]
         words = [(w, float(v)) for w, v in _word_re.findall(command.upper())]
         gcodes = [v for w, v in words if w == "G"]
         values = {w: v for w, v in words if w != "G"}
@@ -64,7 +69,7 @@ class MovePacer:
             dx = values.get("X", 0.0)
             dy = values.get("Y", 0.0)
         duration = math.hypot(dx, dy) / (feed / 60.0)
-        count = math.ceil(duration / MAX_SEGMENT_S - 1e-9)
+        count = math.ceil(duration / self.max_segment_s - 1e-9)
         if count <= 1:
             return [command]
 
@@ -108,10 +113,11 @@ class MovePacer:
             self.absolute = True
         if 91 in gcodes:
             self.absolute = False
-        if "F" in values and values["F"] > 0:
-            self.feed = values["F"]
         if not any(g in (0, 1) for g in gcodes):
             return 0.0
+        # Only a move's F is a feed: M204 F sets the junction speed.
+        if "F" in values and values["F"] > 0:
+            self.feed = values["F"]
 
         x, y = self.x, self.y
         if self.absolute:

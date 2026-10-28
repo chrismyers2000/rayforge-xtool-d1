@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "xtool_d1"))
 from firmware import (  # noqa: E402
     Firmware,
     has_job_control,
+    has_usb_quirks,
     is_identity_line,
     parse_version,
 )
@@ -50,3 +51,13 @@ class FirmwareTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UsbQuirksTest(unittest.TestCase):
+    def test_old_and_unknown_firmware_have_them(self):
+        self.assertTrue(has_usb_quirks(Firmware(40, 30, 2, 1, "B1")))
+        self.assertTrue(has_usb_quirks(None))
+
+    def test_new_firmware_does_not(self):
+        self.assertFalse(has_usb_quirks(Firmware(40, 30, 10, 1, "B2")))
+        self.assertFalse(has_usb_quirks(Firmware(40, 31, 6, 1)))

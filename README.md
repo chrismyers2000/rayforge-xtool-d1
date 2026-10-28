@@ -46,7 +46,7 @@ keeps working, without the newer features.
 
 | Feature | 40.30.002.01 B1 | 40.30.010.01 B2 |
 |---|---|---|
-| USB: connect, jog, stream jobs | verified | connect verified; jobs not re-tested |
+| USB: connect, jog, stream jobs | verified | connect verified; a streamed 20 mm laser-on line at 10% is clean; a five-shade raster run from Rayforge was smooth (below); jogging not re-tested |
 | Wi-Fi: upload, start with the button | verified | verified |
 | Wi-Fi: Pause, Resume, Cancel from Rayforge | not available (the firmware has no such call) | verified with the laser off |
 | Wi-Fi: job running / idle shown in Rayforge | not available | verified (Pause becomes clickable while a job runs) |
@@ -67,7 +67,9 @@ keeps working, without the newer features.
   the faster values then stay set (they survived reopening the USB port;
   whether a power cycle resets them is not checked). The saved copy of
   the job is the rewritten one. Older firmware gets Rayforge's G-code
-  unchanged. USB jobs are not rewritten.
+  unchanged. The USB driver applies the same rewrite to the jobs it
+  streams on 40.30.010.01 or newer (verified with a five-shade, 25 × 10 mm
+  raster at 12% and 30 mm/s, started from Rayforge: smooth, no jitter).
 - On 40.30.010.01, Cancel sends the D1's stop call and then `M5`; what the
   laser does after a stop has not been checked, so the `M5` is a
   precaution.
@@ -109,7 +111,11 @@ keeps working, without the newer features.
   **On 40.30.010.01 the first button press runs the job straight away, with
   no framing pass.** On
   USB, only the power switch is verified: Rayforge's Cancel and the D1's
-  button do not stop a streamed job.
+  button do not stop a streamed job. On 40.30.010.01 the D1 finishes the
+  move in progress after a Cancel, and the `M5` queues behind it: a 40 mm
+  laser-on line at 10 mm/s, cancelled 1 s in, burned to its end. A long,
+  slow laser-on line therefore keeps burning after Cancel, so keep a hand
+  on the power switch.
 - **The D1 cannot home.** It treats wherever the head is at power-on as
   (0, 0). Park the head in the upper-left corner before powering on, and
   power-cycle after moving it by hand.
@@ -155,10 +161,14 @@ and other D1 models.
   until it receives `$I`. Both drivers send it for you. A button stop drops
   the D1 back to app mode, so the Wi-Fi driver sends it again after each
   upload.
-- The D1 abandons any single move after about 3 s. The USB driver splits long
-  moves into segments of at most 1 s.
-- The D1 stalls between streamed moves unless the port stays busy, so the
-  USB driver polls position every 0.2 s during a job.
+- On 40.30.002.01 the D1 abandons any single move after about 3 s. The USB
+  driver splits long moves into segments of at most 1 s there. On
+  40.30.010.01 a 200 mm move at F1200 ran its full length (laser off), so
+  moves are not split.
+- On 40.30.002.01 the D1 stalls between streamed moves unless the port
+  stays busy, so the USB driver polls position every 0.2 s during a job
+  there. On 40.30.010.01 no stalls were seen with 1 s or no polling (laser
+  off), and the driver polls once a second.
 - The D1 has no jog command, so USB jogging sends `G91`, a relative `G0`,
   then `G90`.
 - Power-cycling the D1 re-enumerates its USB adapter (often
