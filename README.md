@@ -23,9 +23,7 @@ fires and damage eyes. Use it at your own risk.
    - USB: pick the port, or enter `1a86:7523` under "Match by USB VID:PID"
      so it survives a power cycle.
 
-The addon's version is its latest git tag (see [Development](#development)). A
-"No stored version ... UnknownVersion" warning in the log means the copy
-you installed has no tag; it is harmless.
+A "No stored version ... UnknownVersion" warning in the log is harmless.
 
 **Manual install:** close Rayforge, copy this folder to
 `~/.config/rayforge/addons/xtool_d1`, and start Rayforge.
@@ -48,110 +46,82 @@ keeps working, without the newer features.
 
 | Feature | 40.30.002.01 B1 | 40.30.010.01 B2 |
 |---|---|---|
-| USB: connect, jog, stream jobs | verified | connect verified; a streamed 20 mm laser-on line at 10% is clean; a five-shade raster run from Rayforge was smooth (below); Frame turns the crosshair on and keeps the cutting laser off; jogging works, and rapid presses stop at the limits |
+| USB: connect, jog, stream jobs | verified | verified |
 | Wi-Fi: upload, start with the button | verified | verified |
-| Wi-Fi: Pause, Resume, Cancel from Rayforge | not available (the firmware has no such call) | verified with the laser off |
-| Wi-Fi: job running / idle shown in Rayforge | not available | verified (Pause becomes clickable while a job runs) |
-| Laser-on lines and contours (Wi-Fi) | verified | verified: a 20 mm line and a Rayforge-made 22 × 20 mm square at 10%, 600 mm/min |
-| Rasters (Wi-Fi) | verified | verified smooth with the driver's rewrite (below): a five-shade raster, paused and cancelled partway |
-| Crosshair (`M106`) in Frame | verified | verified: the crosshair is on during the outline, the cutting laser stays off, the head returns to X0 Y0 (button start) |
-| Auto start | verified; fired the cutting laser | verified twice, laser off both times: a frame with no `M3`, and a frame right after a laser-on cut. The head ended at X0 Y0 |
-| The D1's button on an uploaded job | press 1 frames, press 2 runs, press 3 pauses | press 1 runs the job (observed once) |
+| Wi-Fi: Pause, Resume, Cancel from Rayforge | not available | verified |
+| Wi-Fi: job running / idle shown in Rayforge | not available | verified |
+| Laser-on lines and contours | verified | verified |
+| Rasters | verified | verified |
+| Crosshair (`M106`) in Frame | verified | verified |
+| Auto start | verified (see [Safety](#safety)) | verified |
+| The D1's button on an uploaded job | press 1 frames, press 2 runs, press 3 pauses | press 1 runs the job |
 
-- **Smooth motion on 40.30.010.01.** Unchanged, Rayforge's jobs jitter on
-  this firmware: the head nearly stops where one move meets the next, and
-  each `M3` power change stops it. On 40.30.010.01 or newer the Wi-Fi
-  driver therefore rewrites each job before uploading it: `M204 F6000`
-  (junction speed; the D1's default is 300) and `M205 X1800` at the
-  start, one `M3 S0`, the power as `S` on each move, `S0` on the moves
-  between rows instead of `M5`, and the defaults (`M204 F300`,
-  `M205 X450`) restored at the end. A cancelled job skips that last step;
-  the faster values then stay set (they survived reopening the USB port;
-  whether a power cycle resets them is not checked). The saved copy of
-  the job is the rewritten one. Older firmware gets Rayforge's G-code
-  unchanged. The USB driver applies the same rewrite to the jobs it
-  streams on 40.30.010.01 or newer (verified with a five-shade, 25 × 10 mm
-  raster at 12% and 30 mm/s, started from Rayforge: smooth, no jitter).
+- **Smooth motion on 40.30.010.01.** Rayforge's jobs jitter on this
+  firmware, so on 40.30.010.01 or newer both drivers rewrite each job
+  before it runs. The saved copy of a Wi-Fi job is the rewritten one. A
+  cancelled job leaves the D1's motion settings changed until you
+  power-cycle it. Older firmware gets Rayforge's G-code unchanged.
 - On 40.30.010.01, Cancel sends the D1's stop call and then `M5`; what the
   laser does after a stop has not been checked, so the `M5` is a
   precaution.
 - A paused job still reports "running" on the D1; the driver remembers
   that it paused it.
-- On 40.30.010.01 or newer the driver will not upload while the D1 is
-  running or has paused a job (a paused job reads as working 2): an
-  upload replaces the stored file and cancels it. Console lines and
-  macros are refused the same way, since they join the job's queue.
-  Stop the job first.
-  On 40.30.002.01 the D1 cannot say, so nothing is checked there.
+- On 40.30.010.01 or newer the Wi-Fi driver will not upload while the D1
+  is running or has paused a job, because an upload replaces the stored
+  file and cancels it. Console lines and macros are refused the same way.
+  Stop the job first. On 40.30.002.01 the D1 cannot say whether it is
+  busy, so nothing is checked there.
 - On 40.30.010.01 a stop moves the D1's origin: the next job's X0 Y0 is
-  where the head stopped (laser-off test: a job starting with
-  `G0 X0 Y0` drew its square at the stop point). Put the head where
-  the next job should start. Parking the head at the corner and
-  power-cycling the D1 restores the origin (verified: the next square
-  was drawn at the corner). A job that ends normally away from X0 Y0
-  does not move the origin (verified: after a job ended at X30 Y30,
-  the next job's `G0 X0 Y0` travelled back to the corner).
+  where the head stopped. Put the head where the next job should start,
+  or park it at the corner and power-cycle the D1 to restore the origin.
+  A job that ends normally away from X0 Y0 does not move the origin.
 - On 40.30.010.01 the crosshair light stays on while the D1 is idle.
-  What a later button press does during a job is not yet known.
 - Unknown or unreadable version: treated like 40.30.002.01.
 - Updating: xTool's own tools (the mobile app, xTool Creative Space) are
-  the supported route. On one D1 the mobile app's Wi-Fi update failed from
-  40.30.002.01; it was updated over USB with `esptool` instead (only the
-  app partition at `0x10000` written, Wi-Fi settings kept). Back up the
-  flash first if you try that.
+  the supported route. This addon does not update firmware.
 
 ## Safety
 
 - **Auto start can fire the cutting laser** (about 10%) even when the file
   has no `M3`. Seen on 40.30.002.01; started from the D1's button, the same
-  file did not. On 40.30.010.01 it was not seen in two tests, but that is a
-  small sample: don't use auto start without eye protection and material
-  under the head.
+  file did not. It was not seen on 40.30.010.01, but treat it as possible:
+  don't use auto start without eye protection and material under the head.
 - **Know your stop.** On Wi-Fi with firmware 40.30.010.01 or newer,
-  Rayforge's Cancel stops the job (verified with the laser off). On
-  40.30.002.01, a third button press pauses and the power switch stops it.
+  Rayforge's Cancel stops the job. On 40.30.002.01, a third button press
+  pauses and the power switch stops it.
   **On 40.30.010.01 the first button press runs the job straight away, with
-  no framing pass.** On
-  USB, only the power switch is verified: Rayforge's Cancel and the D1's
-  button do not stop a streamed job. On 40.30.010.01 the D1 finishes the
-  move in progress after a Cancel, and the `M5` queues behind it: a 40 mm
-  laser-on line at 10 mm/s, cancelled 1 s in, burned to its end. A long,
-  slow laser-on line therefore keeps burning after Cancel, so keep a hand
+  no framing pass.** Over USB, Rayforge's Cancel and the D1's button do not
+  stop a streamed job; only the power switch does. On 40.30.010.01 the D1
+  finishes the move in progress after a Cancel, and the laser-off command
+  waits behind it, so a long, slow laser-on line keeps burning. Keep a hand
   on the power switch.
 - **The D1 cannot home.** It treats wherever the head is at power-on as
   (0, 0). Park the head in the upper-left corner before powering on, and
-  power-cycle after moving it by hand.
+  power-cycle after moving it by hand. After connecting, check that
+  Rayforge shows 0, 0; if it does not, power-cycle with the head parked.
 - **Wi-Fi has no position feedback**, so nothing warns you if the zero
   point is wrong. Keep soft limits on with USB. The USB driver keeps
-  jogs inside the limits even when presses come faster than the D1
-  reports its position (Rayforge alone checked each press against a stale
-  position, and five fast diagonal presses took Y from 21.9 to -28.1).
-  The D1 has no limit switches, so the limits are only as good as the zero.
-- **Opening the serial port does not always re-zero the D1.** It did on
-  earlier restarts; once, the D1 kept the position it had and reported
-  X80 Y22 with the head parked at the zero. Check the position Rayforge
-  shows after connecting; power-cycle with the head parked if it is not
-  0, 0.
+  jogs inside the limits, including fast repeated presses. The D1 has no
+  limit switches, so the limits are only as good as the zero.
 - Check where a job starts (the first `G0`) before running it. Imported
   designs may sit at X=0.
 - Wear laser-rated eye protection and keep a hand near the power switch.
 
 ## Supported
 
-- Cutting and engraving, including variable-power rasters (tested over
-  Wi-Fi).
+- Cutting and engraving, including variable-power rasters.
 - Framing: Rayforge's Frame sends an outline job, and the Wi-Fi driver
   keeps the D1's crosshair light on for it (`M106 S1`). On 40.30.002.01 the
   D1 also frames on the first button press; on 40.30.010.01 it does not,
   so use Rayforge's Frame first.
 
 Not tested: Z axis, rotary, firmware versions other than the two above,
-and other D1 models.
+other D1 models, and what the D1's button does during a job on 40.30.010.01.
 
 ## Tips
 
 - **Raster engraving:** set **Power Levels to 100**. At Rayforge's default
-  of 25, a five-shade image came out with only two power levels.
+  of 25, close shades can collapse into fewer power levels.
 - **Min/Max Power are percentages of the step's Power**, not of the laser.
 - **Frame Repeat Count:** Rayforge defaults to 20 passes; the profiles set 5.
 - **Dense fills burn deep.** Use much lower power than for a single line.
@@ -172,14 +142,12 @@ and other D1 models.
   until it receives `$I`. Both drivers send it for you. A button stop drops
   the D1 back to app mode, so the Wi-Fi driver sends it again after each
   upload.
-- On 40.30.002.01 the D1 abandons any single move after about 3 s. The USB
-  driver splits long moves into segments of at most 1 s there. On
-  40.30.010.01 a 200 mm move at F1200 ran its full length (laser off), so
-  moves are not split.
+- On 40.30.002.01 the D1 abandons any single move after about 3 s, so the
+  USB driver splits long moves into segments of at most 1 s there. On
+  40.30.010.01 that limit is gone and moves are not split.
 - On 40.30.002.01 the D1 stalls between streamed moves unless the port
   stays busy, so the USB driver polls position every 0.2 s during a job
-  there. On 40.30.010.01 no stalls were seen with 1 s or no polling (laser
-  off), and the driver polls once a second.
+  there. On 40.30.010.01 it polls once a second.
 - The D1 has no jog command, so USB jogging sends `G91`, a relative `G0`,
   then `G90`.
 - Power-cycling the D1 re-enumerates its USB adapter (often
@@ -203,10 +171,5 @@ and other D1 models.
   `pixi run python -m unittest discover -s <addon>/tests` (the Wi-Fi tests
   need Rayforge's environment).
 - For development, symlink this folder into the addons folder.
-- **Versions.** Rayforge reads the addon's version from its latest git
-  tag (semver, a leading `v` is fine) and offers an update when GitHub has
-  a newer one. To release: commit, then
-  `git tag -a vX.Y.Z -m "..."` and `git push origin master vX.Y.Z`.
-  Use a new patch number for fixes, a new minor number for features.
 
 MIT licensed.
