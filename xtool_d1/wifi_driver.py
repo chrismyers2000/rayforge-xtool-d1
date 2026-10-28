@@ -146,12 +146,13 @@ class XToolD1WifiDriver(Driver):
                     key="auto_start",
                     label=_("Start jobs automatically"),
                     description=_(
-                        "WARNING: the cutting laser may turn on during "
-                        "framing, even though the job never asks for it. "
-                        "Starts the uploaded job from here instead of the "
-                        "machine's button. Not documented by xTool, so off "
-                        "by default; the button is the safe way to start "
-                        "and stop a job."
+                        "WARNING: on firmware 40.30.002.01 the cutting "
+                        "laser may turn on during framing, even though the "
+                        "job never asks for it (not seen on 40.30.010.01 "
+                        "in two tests). Starts the uploaded job from here "
+                        "instead of the machine's button. Not documented "
+                        "by xTool, so off by default; the button is the "
+                        "safe way to start and stop a job."
                     ),
                     default=False,
                 ),
@@ -519,7 +520,14 @@ class XToolD1WifiDriver(Driver):
             self.job_finished.send(self)
         self._is_paused = False
         if stopped:
-            self._toast(_("Stop sent to the D1."))
+            # Seen on 40.30.010.01: the next job's X0 Y0 is where the
+            # head stopped, not where the D1 was zeroed.
+            self._toast(
+                _(
+                    "Stop sent to the D1. It now treats the head's position "
+                    "as X0 Y0: put the head where the next job should start."
+                )
+            )
             self._set_device_status(DeviceStatus.IDLE)
 
     async def set_hold(self, hold: bool = True) -> None:

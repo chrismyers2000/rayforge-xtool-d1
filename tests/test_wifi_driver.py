@@ -315,6 +315,14 @@ class WifiDriverTest(unittest.IsolatedAsyncioTestCase):
             self.d1.working = working
             self.assertEqual(await drv._poll_once(), DeviceStatus.RUN)
 
+    async def test_stop_toast_says_the_origin_moved(self):
+        drv = make_driver(self.port, firmware=Firmware(40, 30, 10, 1, "B2"))
+        toasts = []
+        drv._toast = toasts.append
+        await drv.cancel()
+        self.assertEqual(len(toasts), 1)
+        self.assertIn("X0 Y0", toasts[0])
+
     async def test_new_firmware_stop(self):
         drv = make_driver(self.port, firmware=Firmware(40, 30, 10, 1, "B2"))
         await drv.cancel()

@@ -52,7 +52,8 @@ keeps working, without the newer features.
 | Wi-Fi: job running / idle shown in Rayforge | not available | verified (Pause becomes clickable while a job runs) |
 | Laser-on lines and contours (Wi-Fi) | verified | verified: a 20 mm line and a Rayforge-made 22 × 20 mm square at 10%, 600 mm/min |
 | Rasters (Wi-Fi) | verified | verified smooth with the driver's rewrite (below): a five-shade raster, paused and cancelled partway |
-| Crosshair (`M106`), auto start | verified | not re-tested |
+| Crosshair (`M106`) in Frame | verified | verified: the crosshair is on during the outline, the cutting laser stays off, the head returns to X0 Y0 (button start) |
+| Auto start | verified; fired the cutting laser | verified twice, laser off both times: a frame with no `M3`, and a frame right after a laser-on cut. The head ended at X0 Y0 |
 | The D1's button on an uploaded job | press 1 frames, press 2 runs, press 3 pauses | press 1 runs the job (observed once) |
 
 - **Smooth motion on 40.30.010.01.** Unchanged, Rayforge's jobs jitter on
@@ -78,6 +79,11 @@ keeps working, without the newer features.
   macros are refused the same way, since they join the job's queue.
   Stop the job first.
   On 40.30.002.01 the D1 cannot say, so nothing is checked there.
+- On 40.30.010.01 a stop moves the D1's origin: the next job's X0 Y0 is
+  where the head stopped (laser-off test: a job starting with
+  `G0 X0 Y0` drew its square at the stop point). Put the head where
+  the next job should start. Not yet tested: whether a job that ends
+  normally away from X0 Y0 does the same.
 - On 40.30.010.01 the crosshair light stays on while the D1 is idle.
   What a later button press does during a job is not yet known.
 - Unknown or unreadable version: treated like 40.30.002.01.
@@ -90,8 +96,10 @@ keeps working, without the newer features.
 ## Safety
 
 - **Auto start can fire the cutting laser** (about 10%) even when the file
-  has no `M3`. Started from the D1's button, the same file did not. Don't
-  use auto start without eye protection and material under the head.
+  has no `M3`. Seen on 40.30.002.01; started from the D1's button, the same
+  file did not. On 40.30.010.01 it was not seen in two tests, but that is a
+  small sample: don't use auto start without eye protection and material
+  under the head.
 - **Know your stop.** On Wi-Fi with firmware 40.30.010.01 or newer,
   Rayforge's Cancel stops the job (verified with the laser off). On
   40.30.002.01, a third button press pauses and the power switch stops it.
@@ -129,8 +137,8 @@ and other D1 models.
 - **Dense fills burn deep.** Use much lower power than for a single line.
 - **Auto start** (Wi-Fi) starts the uploaded job without a button press,
   skipping the D1's own frame step. It uses an undocumented call, is off by
-  default, and has been seen to switch the cutting laser on. Prefer the
-  button.
+  default, and on 40.30.002.01 has been seen to switch the cutting laser
+  on. Prefer the button.
 - **Return to origin after a job** (Wi-Fi, off by default): adds `M5`
   and `G0 X0 Y0` after the job's last move. Rayforge's jobs otherwise end
   wherever the last move does. Not added to Frame jobs, and a cancelled
