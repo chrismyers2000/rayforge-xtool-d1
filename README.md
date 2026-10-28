@@ -82,8 +82,11 @@ keeps working, without the newer features.
 - On 40.30.010.01 a stop moves the D1's origin: the next job's X0 Y0 is
   where the head stopped (laser-off test: a job starting with
   `G0 X0 Y0` drew its square at the stop point). Put the head where
-  the next job should start. Not yet tested: whether a job that ends
-  normally away from X0 Y0 does the same.
+  the next job should start. Parking the head at the corner and
+  power-cycling the D1 restores the origin (verified: the next square
+  was drawn at the corner). A job that ends normally away from X0 Y0
+  does not move the origin (verified: after a job ended at X30 Y30,
+  the next job's `G0 X0 Y0` travelled back to the corner).
 - On 40.30.010.01 the crosshair light stays on while the D1 is idle.
   What a later button press does during a job is not yet known.
 - Unknown or unreadable version: treated like 40.30.002.01.
