@@ -13,7 +13,7 @@ try:
     from rayforge.machine.driver.driver import DeviceConnectionError
     from rayforge.machine.driver.driver import DeviceState, DeviceStatus
     from xtool_d1.firmware import Firmware
-    from xtool_d1.wifi_driver import XToolD1WifiDriver
+    from xtool_d1.wifi_driver import JobRunningError, XToolD1WifiDriver
 except ImportError:  # run with Rayforge's environment
     XToolD1WifiDriver = None
 
@@ -127,6 +127,42 @@ class WifiDriverTest(unittest.IsolatedAsyncioTestCase):
         await drv.run(self.encoded("M3 S100\nG1 X10 F600\nM5\n"), None, None)
         self.assertIn("M204 F6000", self.d1.stored)
         self.assertIn("G1 X10 F600 S100", self.d1.stored)
+
+    # -- upload guard -------------------------------------------------------
+
+    async def test_upload_refused_while_running_or_paused(self):
+        drv = make_driver(self.port, firmware=Firmware(40, 30, 10, 1, "B2"))
+        for working in ("1", "2"):  # a paused job reads as 2
+            self.d1.working = working
+            self.d1.requests.clear()
+            with self.assertRaises(JobRunningError):
+                await drv.run(self.encoded("G21\n"), None, None)
+            self.assertIsNone(self.d1.stored)
+            self.assertNotIn("POST", [m for m, _ in self.d1.requests])
+            self.assertNotIn(("GET", "/cmd?cmd=$I"), self.d1.requests)
+        self.assertEqual(drv.job_finished.sent, 2)
+        self.assertEqual(drv.connection_status_changed.sent, 0)
+
+    async def test_upload_allowed_when_idle_on_new_firmware(self):
+        drv = make_driver(self.port, firmware=Firmware(40, 30, 10, 1, "B2"))
+        await drv.run(self.encoded("G21\n"), None, None)
+        self.assertIsNotNone(self.d1.stored)
+
+    async def test_unreadable_status_blocks_the_upload(self):
+        self.d1.working = "?"
+        drv = make_driver(self.port, firmware=Firmware(40, 30, 10, 1, "B2"))
+        with self.assertRaises(DeviceConnectionError):
+            await drv.run(self.encoded("G21\n"), None, None)
+        self.assertIsNone(self.d1.stored)
+
+    async def test_old_firmware_upload_is_not_checked(self):
+        self.d1.working = "2"
+        drv = make_driver(self.port, firmware=Firmware(40, 30, 2, 1, "B1"))
+        await drv.run(self.encoded("G21\n"), None, None)
+        self.assertNotIn(
+            ("GET", "/system?action=get_working_sta"), self.d1.requests
+        )
+        self.assertIsNotNone(self.d1.stored)
 
     async def test_return_home_is_off_by_default(self):
         drv = make_driver(self.port)

@@ -78,6 +78,10 @@ STORED_FILE = "/tmp.gcode"
 LAST_JOB_NAME = "xtool-d1-last-job.gcode"
 
 
+class JobRunningError(DeviceConnectionError):
+    """The D1 is running or has paused a job; an upload would replace it."""
+
+
 class XToolD1WifiDriver(Driver):
     label = _("xTool D1 (Wi-Fi)")
     subtitle = _(
@@ -333,6 +337,24 @@ class XToolD1WifiDriver(Driver):
             len(lines), len(gcode), laser_on, copy,
         )
 
+    async def _ensure_idle(self) -> None:
+        """Refuse to upload while the D1 runs or has paused a job: the
+        upload replaces the stored file and cancels it (a paused job
+        reads as working 2). Only firmware with get_working_sta can say;
+        older firmware is not checked."""
+        if not has_job_control(self.firmware):
+            return
+        reply = await self._get("/system?action=get_working_sta")
+        match = re.search(r'"working"\s*:\s*"?(\d+)', reply)
+        if not match:
+            raise DeviceConnectionError(
+                f"Cannot tell whether the D1 is busy: {reply}"
+            )
+        if match.group(1) != "0":
+            raise JobRunningError(
+                _("The D1 is running or has paused a job. Stop it first.")
+            )
+
     async def _enter_ack_mode(self) -> None:
         """Send ``$I``: after a power cycle the D1's button only starts a
         stored job once it has had this (the USB driver sends it too).
@@ -381,6 +403,7 @@ class XToolD1WifiDriver(Driver):
         on_command_done: Callable[[int], None | Awaitable[None]] | None = None,
     ) -> None:
         try:
+            await self._ensure_idle()
             if on_command_done is not None and encoded.op_map:
                 for op_index in range(encoded.op_map.op_count):
                     result = on_command_done(op_index)
@@ -411,6 +434,10 @@ class XToolD1WifiDriver(Driver):
                     "Stop it with Rayforge's Cancel (firmware 40.30.010.01 "
                     "or newer) or the D1's power switch."
                 )
+        except JobRunningError as e:
+            # The D1 is fine and still connected: nothing was uploaded.
+            self._toast(_("Not uploaded: {err}").format(err=e))
+            raise
         except Exception as e:
             self._toast(_("Upload to the D1 failed: {err}").format(err=e))
             self._update_connection_status(TransportStatus.ERROR, str(e))

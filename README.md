@@ -72,6 +72,10 @@ keeps working, without the newer features.
   precaution.
 - A paused job still reports "running" on the D1; the driver remembers
   that it paused it.
+- On 40.30.010.01 or newer the driver will not upload while the D1 is
+  running or has paused a job (a paused job reads as working 2): an
+  upload replaces the stored file and cancels it. Stop the job first.
+  On 40.30.002.01 the D1 cannot say, so nothing is checked there.
 - On 40.30.010.01 the crosshair light stays on while the D1 is idle.
   What a later button press does during a job is not yet known.
 - Unknown or unreadable version: treated like 40.30.002.01.
