@@ -26,7 +26,10 @@ fires and damage eyes. Use it at your own risk.
 A "No stored version ... UnknownVersion" warning in the log is harmless.
 
 **Manual install:** close Rayforge, copy this folder to
-`~/.config/rayforge/addons/xtool_d1`, and start Rayforge.
+`~/.config/rayforge/addons/xtool_d1`, and start Rayforge. For the
+Flatpak version of Rayforge, use
+`~/.var/app/org.rayforge.rayforge/config/rayforge/addons/xtool_d1`
+instead.
 
 ## Which driver?
 
