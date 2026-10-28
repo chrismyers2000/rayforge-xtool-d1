@@ -46,7 +46,7 @@ keeps working, without the newer features.
 
 | Feature | 40.30.002.01 B1 | 40.30.010.01 B2 |
 |---|---|---|
-| USB: connect, jog, stream jobs | verified | connect verified; a streamed 20 mm laser-on line at 10% is clean; a five-shade raster run from Rayforge was smooth (below); jogging not re-tested |
+| USB: connect, jog, stream jobs | verified | connect verified; a streamed 20 mm laser-on line at 10% is clean; a five-shade raster run from Rayforge was smooth (below); Frame turns the crosshair on and keeps the cutting laser off; jogging works, and rapid presses stop at the limits |
 | Wi-Fi: upload, start with the button | verified | verified |
 | Wi-Fi: Pause, Resume, Cancel from Rayforge | not available (the firmware has no such call) | verified with the laser off |
 | Wi-Fi: job running / idle shown in Rayforge | not available | verified (Pause becomes clickable while a job runs) |
@@ -120,7 +120,16 @@ keeps working, without the newer features.
   (0, 0). Park the head in the upper-left corner before powering on, and
   power-cycle after moving it by hand.
 - **Wi-Fi has no position feedback**, so nothing warns you if the zero
-  point is wrong. Keep soft limits on with USB.
+  point is wrong. Keep soft limits on with USB. The USB driver keeps
+  jogs inside the limits even when presses come faster than the D1
+  reports its position (Rayforge alone checked each press against a stale
+  position, and five fast diagonal presses took Y from 21.9 to -28.1).
+  The D1 has no limit switches, so the limits are only as good as the zero.
+- **Opening the serial port does not always re-zero the D1.** It did on
+  earlier restarts; once, the D1 kept the position it had and reported
+  X80 Y22 with the head parked at the zero. Check the position Rayforge
+  shows after connecting; power-cycle with the head parked if it is not
+  0, 0.
 - Check where a job starts (the first `G0`) before running it. Imported
   designs may sit at X=0.
 - Wear laser-rated eye protection and keep a hand near the power switch.

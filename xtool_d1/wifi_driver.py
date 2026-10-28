@@ -55,6 +55,7 @@ from rayforge.pipeline.encoder.base import EncodedOutput, OpsEncoder
 from rayforge.pipeline.encoder.gcode import GcodeEncoder
 
 from .firmware import Firmware, has_job_control, parse_version
+from .framing import crosshair_on
 from .smooth import needs_smoothing, smooth_moves
 
 if TYPE_CHECKING:
@@ -457,12 +458,7 @@ class XToolD1WifiDriver(Driver):
     @staticmethod
     def _crosshair_on(gcode: str) -> str:
         """Turn the first ``M106 S0`` into ``M106 S1``; the last stays."""
-        lines = gcode.splitlines()
-        for i, line in enumerate(lines):
-            if line.strip().startswith("M106 S0"):
-                lines[i] = "M106 S1 ;Framing laser on"
-                break
-        return "\n".join(lines) + "\n"
+        return crosshair_on(gcode)
 
     @staticmethod
     def _return_home(gcode: str) -> str:

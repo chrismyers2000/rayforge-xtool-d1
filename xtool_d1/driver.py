@@ -63,6 +63,8 @@ from .firmware import (
     is_identity_line,
     parse_version,
 )
+from .framing import crosshair_on
+from .jogging import JogTracker
 from .pacing import MAX_SEGMENT_S, MovePacer
 from .smooth import needs_smoothing, smooth_lines
 
@@ -141,6 +143,8 @@ class XToolD1Driver(Driver):
         self._line_buffer = bytearray()
         self._status_seen = asyncio.Event()
         self._pacer = MovePacer((0.0, 0.0))
+        self._jogs = JogTracker()
+        self._framing = False
         self._current_op_index = -1
         self.firmware: Firmware | None = None
 
@@ -425,6 +429,7 @@ class XToolD1Driver(Driver):
         on_command_done: Callable[[int], None | Awaitable[None]] | None = None,
     ) -> None:
         self._is_cancelled = False
+        self._jogs.reset()
         # Rayforge's console submits one line per call, so several
         # streams can overlap: the job is over when the last one ends.
         self._active_streams += 1
@@ -561,11 +566,20 @@ class XToolD1Driver(Driver):
         on_command_done: Callable[[int], None | Awaitable[None]] | None = None,
     ) -> None:
         self._start_job(on_command_done)
+        text = crosshair_on(encoded.text) if self._framing else encoded.text
         if needs_smoothing(self.firmware):
-            lines, origin = smooth_lines(encoded.text)
+            lines, origin = smooth_lines(text)
             await self._stream(lines, encoded.op_map, origin)
         else:
-            await self._stream(encoded.text.splitlines(), encoded.op_map)
+            await self._stream(text.splitlines(), encoded.op_map)
+
+    async def frame(self, *args: Any, **kwargs: Any) -> None:
+        """Frame with the D1's crosshair light on while the head moves."""
+        self._framing = True
+        try:
+            await super().frame(*args, **kwargs)
+        finally:
+            self._framing = False
 
     async def run_raw(self, machine_code: str) -> None:
         lines = [x.strip() for x in machine_code.splitlines() if x.strip()]
@@ -625,10 +639,20 @@ class XToolD1Driver(Driver):
 
     async def jog(self, speed: int, **deltas: float) -> None:
         # No $J on the D1: relative G0 between G91 and G90.
+        deltas = {k.lower(): v for k, v in deltas.items()}
+        deltas = {k: v for k, v in deltas.items() if k in ("x", "y")}
+        if self._machine.soft_limits_enabled:
+            x, y, _z = self.state.machine_pos
+            deltas = self._jogs.clamp(
+                {"x": x, "y": y},
+                deltas,
+                self._machine.get_soft_limits(),
+                speed,
+            )
         moves = "".join(
             f" {name.upper()}{self._to_machine_length(dist)}"
             for name, dist in deltas.items()
-            if name.lower() in ("x", "y")
+            if dist
         )
         if not moves:
             return
