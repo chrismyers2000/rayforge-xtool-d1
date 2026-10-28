@@ -143,6 +143,28 @@ class WifiDriverTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(drv.job_finished.sent, 2)
         self.assertEqual(drv.connection_status_changed.sent, 0)
 
+    async def test_console_refused_while_running_or_paused(self):
+        drv = make_driver(self.port, firmware=Firmware(40, 30, 10, 1, "B2"))
+        for working in ("1", "2"):
+            self.d1.working = working
+            self.d1.requests.clear()
+            with self.assertRaises(JobRunningError):
+                await drv.run_raw("M106 S1\nG4 P1\n")
+            self.assertFalse(
+                [r for r in self.d1.requests if r[1].startswith("/cmd")]
+            )
+
+    async def test_console_allowed_when_idle_on_new_firmware(self):
+        drv = make_driver(self.port, firmware=Firmware(40, 30, 10, 1, "B2"))
+        await drv.run_raw("G4 P1")
+        self.assertIn(("GET", "/cmd?cmd=G4%20P1"), self.d1.requests)
+
+    async def test_old_firmware_console_is_not_checked(self):
+        self.d1.working = "2"
+        drv = make_driver(self.port, firmware=Firmware(40, 30, 2, 1, "B1"))
+        await drv.run_raw("G4 P1")
+        self.assertIn(("GET", "/cmd?cmd=G4%20P1"), self.d1.requests)
+
     async def test_upload_allowed_when_idle_on_new_firmware(self):
         drv = make_driver(self.port, firmware=Firmware(40, 30, 10, 1, "B2"))
         await drv.run(self.encoded("G21\n"), None, None)

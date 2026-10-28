@@ -476,6 +476,13 @@ class XToolD1WifiDriver(Driver):
         return "\n".join(lines) + "\n"
 
     async def run_raw(self, machine_code: str) -> None:
+        # /cmd lines join the D1's job queue, so they would run inside
+        # (or be added to) a running or paused job.
+        try:
+            await self._ensure_idle()
+        except JobRunningError as e:
+            self._toast(_("Not sent: {err}").format(err=e))
+            raise
         for raw in machine_code.splitlines():
             line = raw.split(";", 1)[0].strip()
             if line:
