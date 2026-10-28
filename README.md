@@ -23,7 +23,9 @@ fires and damage eyes. Use it at your own risk.
    - USB: pick the port, or enter `1a86:7523` under "Match by USB VID:PID"
      so it survives a power cycle.
 
-A "No stored version ... UnknownVersion" warning in the log is harmless.
+The addon's version is its latest git tag (see [Development](#development)). A
+"No stored version ... UnknownVersion" warning in the log means the copy
+you installed has no tag; it is harmless.
 
 **Manual install:** close Rayforge, copy this folder to
 `~/.config/rayforge/addons/xtool_d1`, and start Rayforge.
@@ -189,15 +191,22 @@ and other D1 models.
 - `xtool_d1/backend.py`: registers the drivers and installs the profiles.
   Rayforge 1.13 never calls the `register_machines` hook, so this happens
   in `rayforge_init`.
-- `xtool_d1/driver.py`, `pacing.py`: the USB driver and its move pacing.
+- `xtool_d1/driver.py`, `pacing.py`, `jogging.py`: the USB driver, its
+  move pacing, and the jog limits.
 - `xtool_d1/wifi_driver.py`: the Wi-Fi driver (HTTP API on port 8080).
 - `xtool_d1/firmware.py`: firmware version parsing and which version has
   what.
 - `xtool_d1/smooth.py`: the job rewrite for 40.30.010.01.
+- `xtool_d1/framing.py`: the crosshair swap for Frame jobs (both drivers).
 - `xtool_d1/profile/`: device and G-code dialect definitions.
 - Tests: from a Rayforge checkout, run
   `pixi run python -m unittest discover -s <addon>/tests` (the Wi-Fi tests
   need Rayforge's environment).
 - For development, symlink this folder into the addons folder.
+- **Versions.** Rayforge reads the addon's version from its latest git
+  tag (semver, a leading `v` is fine) and offers an update when GitHub has
+  a newer one. To release: commit, then
+  `git tag -a vX.Y.Z -m "..."` and `git push origin master vX.Y.Z`.
+  Use a new patch number for fixes, a new minor number for features.
 
 MIT licensed.
